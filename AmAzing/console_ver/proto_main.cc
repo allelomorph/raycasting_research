@@ -5,7 +5,7 @@
 #include <fcntl.h>        // open(2)
 #include <errno.h>
 //#include <string.h>       // strerror
-#include <unistd.h>       // STDIN_FILENO read uid_t gid_t get(set)egid get(set)euid
+#include <unistd.h>       // STDIN_FILENO read uid_t gid_t get(set)egid get(set)euid ttyname
 #include <linux/input.h>  // input_event
 #include <sys/ioctl.h>    // EVIOCGRAB
 #include <sys/select.h>   // fd_set FD_ZERO FD_SET
@@ -25,7 +25,7 @@
 #include <cstring>        // strerror
 #include <csignal>        // signal sig_atomic_t SIGINT SIGTERM
 #include <cstdio>         // popen FILE perror feof fgets pclose
-#include <cstdlib>        // atoi exit
+#include <cstdlib>        // atoi exit getenv
 //#include <cctype>         // isdigit tolower
 
 /*
@@ -34,7 +34,16 @@ TBD: what is including ctype.h?
 #error "_CTYPE_H defined"
 #endif
 */
+#include <utmp.h>         // utmp setutent getutent endutent USER_PROCESS
+#include <type_traits>    // is_same
+#include <fstream>
+#include <array>
 
+// errnoname.c uses C99 designated initializers and must be compiled separately
+//   as C, then linked
+extern "C" {
+#include "errnoname.h"
+}
 //#define DEBUG
 //#include "typeName.hh"
 
@@ -60,6 +69,39 @@ static void interrupt_handler(int /*signal*/) {
     stop = 1;
 }
 
+// safeCExec needs linking with errnoname.o (compiled as C)
+template<typename FuncPtrType, typename RetType, typename ...ParamTypes>
+RetType safeCExec(FuncPtrType func, std::string func_name,
+                 RetType failure_retval, ParamTypes ...params) {
+    errno = 0;
+    RetType retval { func(params...) };
+    if (retval == failure_retval) {
+        std::ostringstream msg;
+        msg << func_name << ": ";
+        if (errno == 0)
+            msg << "failure without setting errno";
+        else
+            msg << errnoname(errno) << " - " << std::strerror(errno);
+        throw std::runtime_error(msg.str());
+    }
+    return retval;
+}
+
+template<typename FuncPtrType, typename ...ParamTypes>
+void safeCExecVoidRet(FuncPtrType func, std::string func_name,
+                      ParamTypes ...params) {
+    errno = 0;
+    std::ostringstream msg;
+
+    func(params...);
+    if (errno != 0) {
+        msg << func_name << ": ";
+        msg << errnoname(errno) << " - " << std::strerror(errno);
+        throw std::runtime_error(msg.str());
+    }
+}
+
+
 /**
  * Test ability to grab keyboard device; ungrab on failure.
  *
@@ -80,46 +122,42 @@ static int testGrabDevice(int fd)
 static std::string getShellCmdOutput(const char* cmd)
 {
     // Likely running main either as root or as member of `input` group
+    // man getegid(2), geteuid(2): "These functions are always successful."
     gid_t gid { getegid() };
     uid_t uid { geteuid() };
 
-    // For safety, while running other programs, switch user to nobody
-    struct passwd* nobody_pwd { getpwnam("nobody") };
-    if (nobody_pwd == nullptr) {
-        // TBD: standardize error returns
-        errno = 0;
-        std::ostringstream msg;
-        msg << "getpwnam: " << std::strerror(errno);
-        throw std::runtime_error(msg.str());
-    }
-    setegid(nobody_pwd->pw_gid);
-    seteuid(nobody_pwd->pw_uid);
-
-    FILE* pipe { popen(cmd, "r") };
-    if (pipe == nullptr) {
-        // TBD: standardize error returns
-        errno = 0;
-        std::ostringstream msg;
-        msg << "popen: " << std::strerror(errno);
-        throw std::runtime_error(msg.str());
-    }
-    char buffer[128];
     std::string result;
-    while (!std::feof(pipe)) {
-        if (std::fgets(buffer, 128, pipe) != nullptr)
-            result += buffer;
-    }
-    if (pclose(pipe) == -1) {
-        // TBD: standardize error returns
-        errno = 0;
-        std::ostringstream msg;
-        msg << "pclose: " << std::strerror(errno);
-        throw std::runtime_error(msg.str());
-    }
-    // restore original user and group
-    setegid(gid);
-    seteuid(uid);
+    std::string error_msg;
 
+    try {
+        // For safety, while running other programs, switch user to nobody
+        // Note: only priveledged users can set gid and uid, expecting root
+        struct passwd* nobody_pwd {
+            safeCExec(getpwnam, "getpwnam", (struct passwd*)nullptr, "nobody") };
+        safeCExec(setegid, "setegid", (int)-1, nobody_pwd->pw_gid);
+        safeCExec(seteuid, "seteuid", (int)-1, nobody_pwd->pw_uid);
+
+        // forks into child and returns cmd output on "r"
+        FILE* pipe { safeCExec(popen, "popen", (FILE*)nullptr, cmd, "r") };
+        char buffer[128];
+        while (!std::feof(pipe)) {
+            if (std::fgets(buffer, 128, pipe) != nullptr)
+                result += buffer;
+        }
+        safeCExec(pclose, "pclose", (int)-1, pipe);
+    } catch (std::exception &e) {
+        error_msg.append(e.what());
+    }
+
+    // restore original user and group
+    safeCExec(setegid, "setegid", (int)-1, gid);
+    safeCExec(seteuid, "seteuid", (int)-1, uid);
+
+    if (error_msg != "") {
+        error_msg.insert(0, ": ");
+        error_msg.insert(0, __FUNCTION__);
+        throw std::runtime_error(error_msg);
+    }
     return result;
 }
 
@@ -199,6 +237,71 @@ static std::string determineInputDevice(void)
     return devices[max_device_i];
 }
 
+// check if on pty or tty
+static void determineCaptureTty(void) {
+    // Use of ttyname taken from coreutils tty, see:
+    //  - https://github.com/coreutils/coreutils/blob/master/src/tty.c
+    std::string curr_tty_name {
+        safeCExec(ttyname, "ttyname", (char*)nullptr, STDIN_FILENO) };
+    char *SSH_TTY { getenv("SSH_TTY") };
+
+    // Current tty is true tty with hardware access
+    if (curr_tty_name.find("tty") != std::string::npos && SSH_TTY == nullptr) {
+        std::cout << "Terminal focus for input: " << curr_tty_name << " (current)\n";
+        std::cout << "Terminal output sent to: " << curr_tty_name << " (current)\n";
+        return;
+    }
+
+    // Current tty is pty and/or ssh session
+    // Need to find and nominate a true tty for input capture
+    std::ofstream ofs;
+    constexpr std::array<const char*, 5> grab_msg {
+        "********************************************************************************",
+            "*                                   WARNING                                    *",
+            "*       Process (exec pid): (exec name) is grabbing keyboard events.           *",
+            "*   Please maintain keyboard focus on this tty until ungrab message appears.   *",
+            "********************************************************************************"
+    };
+    std::string candidate_tty_name;
+    bool valid_input_tty_found;
+    // Use of utmp taken from coreutils who, see:
+    //  - https://github.com/coreutils/coreutils/blob/master/src/who.c
+    //  - https://github.com/coreutils/gnulib/blob/master/lib/readutmp.h
+    struct utmp *ut;
+    // Open _PATH_UTMP (eg /var/run/utmp)
+    // Note: in testing setutent will set ENOENT even on success, so we do not use safeCExecVoidRet
+    setutent();
+    while ((ut = getutent()) != nullptr) {
+        // USER_PROCESS: normal process with attached username that is not LOGIN
+        if (ut->ut_type == USER_PROCESS) {
+            candidate_tty_name.clear();
+            candidate_tty_name.append("/dev/");
+            candidate_tty_name.append(ut->ut_line);
+            if (candidate_tty_name.find("tty") != std::string::npos) {
+                ofs.open(candidate_tty_name);
+                if (ofs.is_open()) {
+                    valid_input_tty_found = true;
+                    ofs << '\n';
+                    for (const auto &line : grab_msg)
+                        ofs << line << '\n';
+                    ofs.close();
+                    break;
+                }
+            }
+        }
+    }
+    // close _PATH_UTMP
+    safeCExecVoidRet(endutent, "endutent");
+
+    if (!valid_input_tty_found) {
+        std::cout << "No non-pty tty found, cannot capture any keyboard events!\n";
+        exit(EXIT_FAILURE);
+    }
+    std::cout << "Terminal focus for input: " << candidate_tty_name << "\n";
+    std::cout << "Terminal output sent to: " << curr_tty_name << " (current)\n";
+}
+
+
 struct HUDGlyph {
     bool pressed;
     const char* repr;
@@ -208,20 +311,15 @@ int main() {
     // determine likely keboard device file path via /proc/bus/input/devices
     std::string kbd_path { determineInputDevice() };
     std::cout << "Selected keyboard device path: " << kbd_path << '\n';
-    int fd { open(kbd_path.c_str(), O_RDONLY) };
-    if (fd < 0) {
-        std::cerr << "Failure to open \"" << kbd_path << "\": " <<
-            std::strerror(errno) << std::endl;
-        return EXIT_FAILURE;
-    }
-
+    int fd { safeCExec(open, "open", (int)-1, kbd_path.c_str(), O_RDONLY) };
     if (testGrabDevice(fd) != 0) {
-        // TBD: standardize error failure
         std::cerr << "Failure to grab device \"" << kbd_path <<
-            "\": check permissions, and that it is not already grabbed by X." <<
+            "\": check that it is not already grabbed by X." <<
             std::endl;
         return EXIT_FAILURE;
     }
+
+    determineCaptureTty();
 
     signal(SIGINT, interrupt_handler);
     signal(SIGTERM, interrupt_handler);

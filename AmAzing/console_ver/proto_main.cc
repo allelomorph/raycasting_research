@@ -25,11 +25,11 @@
 #include <cstring>        // strerror
 #include <csignal>        // signal sig_atomic_t SIGINT SIGTERM
 #include <cstdio>         // popen FILE perror feof fgets pclose
-#include <cstdlib>        // atoi
+#include <cstdlib>        // atoi exit
 //#include <cctype>         // isdigit tolower
 
 /*
-TBD: what is including stype.h?
+TBD: what is including ctype.h?
 #ifdef _CTYPE_H
 #error "_CTYPE_H defined"
 #endif
@@ -39,6 +39,7 @@ TBD: what is including stype.h?
 //#include "typeName.hh"
 
 // TBD: why did terminal_cursor_up stop working?
+// CSI_CURSOR_UP expects an unsigned integer
 #define CSI_CURSOR_UP( x ) "\x1b[" #x "A"
 
 /*
@@ -206,7 +207,6 @@ struct HUDGlyph {
 int main() {
     // determine likely keboard device file path via /proc/bus/input/devices
     std::string kbd_path { determineInputDevice() };
-    // std::string kbd_filename { "/dev/input/by-path/platform-i8042-serio-0-event-kbd" };
     std::cout << "Selected keyboard device path: " << kbd_path << '\n';
     int fd { open(kbd_path.c_str(), O_RDONLY) };
     if (fd < 0) {
@@ -236,16 +236,11 @@ int main() {
         { KEY_LEFT,  { false, "\u2190" } },
         { KEY_UP,    { false, "\u2191" } },
         { KEY_RIGHT, { false, "\u2192" } },
-        { KEY_DOWN,  { false, "\u2193" } }
+        { KEY_DOWN,  { false, "\u2193" } },
+        { KEY_C,          { false, "" } },
+        { KEY_LEFTCTRL,   { false, "" } },
+        { KEY_RIGHTCTRL,  { false, "" } }
     };
-
-#ifdef NOECHO
-    struct termios term;
-    tcgetattr(STDIN_FILENO, &term);
-
-    term.c_lflag &= ~ECHO;
-    tcsetattr(STDIN_FILENO, 0, &term);
-#endif  // no echo
 
     struct input_event ev[64];
     fd_set rdfds;
@@ -271,6 +266,15 @@ int main() {
 #endif  // DEBUG
         for (size_t i {0}; i < rd / sizeof(struct input_event); ++i) {
             if (ev[i].type == EV_KEY) {
+                if (ev[i].code == KEY_LEFTCTRL || ev[i].code == KEY_RIGHTCTRL) {
+                    display_map[ev[i].code].pressed = ev[i].value;
+                    continue;
+                }
+                if (ev[i].code == KEY_C && ev[i].value == 1) {
+                    stop = (display_map[KEY_LEFTCTRL].pressed ||
+                            display_map[KEY_RIGHTCTRL].pressed);
+                    continue;
+                }
 #ifdef DEBUG
                 std::cout << "\tev[" << i <<
                     "]: code: " << ev[i].code <<
@@ -304,11 +308,6 @@ int main() {
         std::cout << '\n' << CSI_CURSOR_UP(1);
 #endif  // not debugging
     }
-
-#ifdef NOECHO
-    term.c_lflag |= ECHO;
-    tcsetattr(fileno(stdin), 0, &term);
-#endif  // no echo
 
     // ungrab (test_grab leaves grabbed if successful)
     ioctl(fd, EVIOCGRAB, (void*)0);

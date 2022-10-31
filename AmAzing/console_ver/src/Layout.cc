@@ -1,16 +1,18 @@
 #include "../include/Layout.hh"
-#//include "../include/Matrix.hh"
+//#include "../include/Matrix.hh"
 #include <iostream>
 #include <fstream>
+#include <string>
 
 // used Eigen::Vector2d, Eigen::Vector2d::operator()
 
 // parsing map file into map in memory
-Layout::Layout(std::string filename/*, Vector2d& pos*/) {
-    std::ifstream map_file(filename);
+Layout::Layout(std::string map_filename/*, Vector2d& pos*/) {
+    std::ifstream map_file(map_filename);
     if (!map_file.is_open()) {
-        std::cout << "Could not open file: " << filename << std::endl;
-        exit(EXIT_FAILURE);
+        std::string err_msg { "Could not open map file: " };
+        err_msg += map_filename;
+        throw std::runtime_error(err_msg);
     }
     std::string line;
     bool viable_start_exists = false;
@@ -19,6 +21,7 @@ Layout::Layout(std::string filename/*, Vector2d& pos*/) {
     columns = 0;
     std::vector<int> row;
     std::cout << "parsing map file:\n";
+    // empty lines end map parsing
     while (std::getline(map_file, line) && line.size()) {
         ++rows;
         std::cout << line << '\n';

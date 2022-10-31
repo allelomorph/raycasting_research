@@ -5,8 +5,6 @@
 #include <string>
 //#include "../include/Matrix.hh"  // Vector2d
 
-// used Eigen::Vector2d
-
 struct Layout {
     std::vector<std::vector<int>> map;
     uint32_t columns;

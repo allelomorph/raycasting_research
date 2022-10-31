@@ -1,4 +1,8 @@
-#include "../include/State.hh"
+#include <iomanip>
+#include <iostream>
+#include <cstdint>   // uint16_t
+
+#include "State.hh"
 
 State *State::instance = new State;
 
@@ -7,6 +11,6 @@ State *State::getInstance() {
 }
 
 State::~State() {
-    if (layout)
+    if (layout != nullptr)
         delete layout;
 }

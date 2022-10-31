@@ -4,9 +4,9 @@
 int main(int argc, const char* argv[]) {
     if (argc != 2) {
         std::cerr << "Usage: " << argv[0] << " <map_filename>" << std::endl;
-        exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
-    App app;
-    app.run(argv[1]);
-    return 0;
+
+    App app(argv[0], argv[1]);
+    app.run();
 }

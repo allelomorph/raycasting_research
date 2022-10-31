@@ -10,11 +10,21 @@
 #include <sys/types.h>    // pid_t
 #include <unistd.h>       // getpid
 
-/*
-App::App() {
-    state = State::getInstance();
+
+void FpsCalculator::initialize() {
+    prev_timepoint = clock();
 }
-*/
+
+void FpsCalculator::calculate() {
+    double frame_duration;
+
+    curr_timepoint = clock();
+    frame_duration = ((double(curr_timepoint - prev_timepoint)) / CLOCKS_PER_SEC);
+    prev_timepoint = curr_timepoint;
+    moving_avg_frame_time = (moving_avg_frame_time * 19.0 / 20.0) +
+        (frame_duration / 20.0);
+}
+
 
 App::App(const char* efn, const char* mfn) :
     exec_filename(efn), map_filename(mfn) {
@@ -45,6 +55,7 @@ void App::initialize() {
         return;
     }
 
+    fps_calc.initialize();
     state->key_handler.initialize(exec_filename);
 
     signal(SIGINT, interrupt_handler);
@@ -55,22 +66,12 @@ void App::run() {
     initialize();
 
     while(!stop && !state->done) {
-        calculateFPS();
+        fps_calc.calculate();
         getEvents();
-        updateData(/*moving_avg_frame_time*/);
+        updateData(/*fps_calc.moving_avg_frame_time*/);
 
         printDebugHUD();
     }
-}
-
-void App::calculateFPS() {
-    double frame_duration;
-
-    curr_timepoint = clock();
-    frame_duration = ((double(curr_timepoint - prev_timepoint)) / CLOCKS_PER_SEC);
-    prev_timepoint = curr_timepoint;
-    moving_avg_frame_time = (moving_avg_frame_time * 19.0 / 20.0) +
-        (frame_duration / 20.0);
 }
 
 void App::getEvents() {
@@ -78,9 +79,8 @@ void App::getEvents() {
 }
 
 void App::updateData() {
-    // frameTime == moving_avg_frame_time
+    // frameTime == fps_calc.moving_avg_frame_time
     // q or escape keys: quit
-    // TBD: integrate ctrl+c
     if (state->key_handler.isPressed(KEY_Q) ||
         state->key_handler.isPressed(KEY_ESC)) {
         state->done = true;
@@ -161,11 +161,10 @@ void App::printDebugHUD() {
     std::cout << "\tflags: done: " << std::setw(5) << state->done <<
         " showFPS: " << std::setw(5) << state->showFPS <<
         " showMap: " << std::setw(5) << state->showMap << '\n';
-    std::cout << "FPS: " << (1 / moving_avg_frame_time) << '\n';
+    std::cout << "FPS: " << (1 / fps_calc.moving_avg_frame_time) << '\n';
 
     for (const auto& pair : state->key_handler.key_states) {
         auto key { pair.second };
-        // TBD: passing const this discards qualifiers
         std::cout /*<< std::setw(6)*/ << pair.second.repr << ": " << std::noboolalpha << key.isPressed() << ' ';
     }
     std::cout << '\n' << CSI_CURSOR_UP(4);

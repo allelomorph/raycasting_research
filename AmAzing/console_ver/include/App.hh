@@ -18,9 +18,20 @@
 
 extern volatile std::sig_atomic_t stop;
 
+class FpsCalculator {
+private:
+    // TBD: udpate to C++ idiomatic time calculation?
+    clock_t prev_timepoint;
+    clock_t curr_timepoint;
+public:
+    double moving_avg_frame_time { 0.015 };
+    void initialize();
+    void calculate();
+};
+
 class App {
 public:
-    App();
+    App() = delete;
     App(const char* exec_filename, const char* map_filename);
     ~App();
 
@@ -29,14 +40,9 @@ private:
     State *state;
     std::string exec_filename;
     std::string map_filename;
-    // TBD: encapsulate into FPScalculator class and make member of state?
-    // TBD: udpate to C++ idiomatic time calculation?
-    clock_t prev_timepoint { clock() };
-    clock_t curr_timepoint;
-    double moving_avg_frame_time { 0.015 };
+    FpsCalculator fps_calc;
 
     void initialize();
-    void calculateFPS();
     void getEvents();
     void updateData();
     void printDebugHUD();

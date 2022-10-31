@@ -40,15 +40,8 @@ public:
     LinuxKeyCode code;
     std::string repr;
 
-    // Default (void param) constructor needed for std::map/set (eg.
-    //   operator[] with a missing key.
-/*
-    InputKey() {
-        throw std::runtime_error(
-            "InputKey() should never be called, as key_states should never be "
-            "directly accessed with an unknown key");
-    };
-*/
+    // InputKey() only needed if map operator[] called with missing key
+    InputKey() = delete;
     InputKey(KeyType kt, LinuxKeyCode c, const char* r) :
         type(kt), code(c), repr(r) {};
     /*

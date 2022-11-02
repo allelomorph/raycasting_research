@@ -1,6 +1,6 @@
 #include "KeyHandler.hh"
 #include "safeCExec.hh"
-#include "App.hh"         // stop
+#include "App.hh"          // stop
 
 #include <linux/input.h>   // input_event EV_* KEY_*
 #include <sys/ioctl.h>     // ioctl EVIOCGRAB
@@ -23,6 +23,10 @@
 #include <fstream>
 #include <iostream>       // cerr
 
+// used by determineInputDevice
+#define EXE_GREP           "/bin/grep"
+#define INPUT_EVENT_PATH   "/dev/input/"
+
 
 KeyHandler::KeyHandler() {
     key_states = std::unordered_map<LinuxKeyCode, InputKey> {
@@ -41,6 +45,37 @@ KeyHandler::KeyHandler() {
         { KEY_RIGHTCTRL,  InputKey (KeyType::Live,        KEY_RIGHTCTRL, "<Rctrl>" ) },
         { KEY_ESC,        InputKey (KeyType::Live,        KEY_ESC, "<esc>" ) },
     };
+}
+
+static std:: string generateUngrabMessage() {
+    std::ostringstream msg;
+    static constexpr uint16_t msg_width { 100 };
+    static std::string msg_border ( msg_width, '*' );
+    static constexpr char msg_line_1_prefix[] { "Process " };
+    static constexpr char msg_line_1_suffix[] { " is no longer grabbing keyboard events."};
+    msg << '\n';
+    msg << msg_border << '\n';
+    msg << '\t' << msg_line_1_prefix << static_cast<int>(getpid()) <<
+        msg_line_1_suffix << '\n';
+    msg << msg_border << '\n';
+    return msg.str();
+}
+
+void KeyHandler::ungrabDevice() {
+    if (kbd_device_fd != UNINITIALIZED_FD) {
+        safeCExec(ioctl, "ioctl", (int)-1, kbd_device_fd, EVIOCGRAB, (void*)0);
+        safeCExec(close, "close", (int)-1, kbd_device_fd);
+        std::ofstream ofs;
+        ofs.open(input_tty_name);
+        if (ofs.is_open()) {
+            ofs << generateUngrabMessage();
+            ofs.close();
+        }
+    }
+}
+
+KeyHandler::~KeyHandler() {
+    ungrabDevice();
 }
 
 bool KeyHandler::isPressed(LinuxKeyCode keysym) {
@@ -71,20 +106,27 @@ void KeyHandler::handleKeyEvent(const struct input_event& ev) {
 */
 
 void KeyHandler::getKeyEvents() {
-    // select blocks until there is something to read in fd, but does not prevent
-    //   other reads like a blocking read() would
-    select(kbd_fd + 1, &rdfds, NULL, NULL, NULL);
-    // TBD: this needed? `if (stop) break;`
-    ssize_t rd { safeCExec(read, "read", (ssize_t)-1, kbd_fd, ev, sizeof(ev)) };
-    if (rd < (int) sizeof(struct input_event)) {
-        std::cerr << "expected " << sizeof(struct input_event) <<
-            " bytes, got " << rd << ", read: " << strerror(errno);
-        // TBD: fail out condition?
-        return;
+    // select() blocks until there is something to read in fd, but does not
+    //   prevent other reads like a blocking read() would.
+    // TBD: currently without a time limit select will block the current frame
+    //   from completing, even if the process was signaled. Maybe setting a
+    //   time limit, and early return from here if time limit exceeded, will
+    //   help this? Per man 2 select, return is 0 on timeout, so maybe set a
+    //   timeout of the maximum expected frame duration, like .1 sec?
+    std::ostringstream error_oss;
+    safeCExec(select, "select", (int)-1,
+              kbd_device_fd + 1, &rdfds,
+              (fd_set*)nullptr, (fd_set*)nullptr, (timeval*)nullptr);
+    ssize_t rd { safeCExec(read, "read", (ssize_t)-1,
+                           kbd_device_fd, ev, sizeof(ev)) };
+    if (rd < (ssize_t)sizeof(struct input_event)) {
+        error_oss << __FUNCTION__ << ": expected to read at least " <<
+            sizeof(struct input_event) << " bytes, got " << rd;
+        throw std::runtime_error(error_oss.str());
     }
     std::size_t input_event_ct { rd / sizeof(struct input_event) };
     for (std::size_t i {0}; i < input_event_ct; ++i) {
-        // TBD: other input events ignored for now
+        // Reading from the keyboard device, so all events should be EV_KEY
         if (ev[i].type != EV_KEY)
             continue;
         // TBD: is there a way to standardize handling of ctrl + key?
@@ -99,22 +141,9 @@ void KeyHandler::getKeyEvents() {
     }
 }
 
-/**
- * Test ability to grab keyboard device; ungrab on failure.
- *
- * @param fd The file descriptor to the keyboard device
- * @return 0 if the grab was successful, or 1 otherwise.
- */
-static int testGrabDevice(int fd) {
-    int rc { ioctl(fd, EVIOCGRAB, (void*)1) };
-    if (rc != 0)
-        ioctl(fd, EVIOCGRAB, (void*)0);
-    return rc;
-}
-
-
 // forks into child, executes cmd and returns string output
 // adapted from https://github.com/kernc/logkeys/blob/master/src/logkeys.cc execute()
+// sete(gid|uid) requires root
 static std::string getShellCmdOutput(const char* cmd) {
     // Likely running main either as root or as member of `input` group
     // man getegid(2), geteuid(2): "These functions are always successful."
@@ -122,7 +151,9 @@ static std::string getShellCmdOutput(const char* cmd) {
     uid_t uid { geteuid() };
 
     std::string result;
-    std::string error_msg;
+    std::ostringstream error_msg;
+    error_msg << __FUNCTION__ << ": ";
+    bool error { false };
 
     try {
         // For safety, while running other programs, switch user to nobody
@@ -141,36 +172,33 @@ static std::string getShellCmdOutput(const char* cmd) {
         }
         safeCExec(pclose, "pclose", (int)-1, pipe);
     } catch (std::exception &e) {
-        error_msg.append(e.what());
+        error = true;
+        error_msg << e.what();
     }
 
     // restore original user and group
     safeCExec(setegid, "setegid", (int)-1, gid);
     safeCExec(seteuid, "seteuid", (int)-1, uid);
 
-    // __FUNCTION__ should work with clang, gcc, and MSVC
-    if (error_msg != "") {
-        error_msg.insert(0, ": ");
-        error_msg.insert(0, __FUNCTION__);
-        throw std::runtime_error(error_msg);
-    }
+    if (error)
+        throw std::runtime_error(error_msg.str());
     return result;
 }
 
-#define EXE_GREP           "/bin/grep"
-#define INPUT_EVENT_PATH   "/dev/input/"
 // adapted from https://github.com/kernc/logkeys/blob/master/src/logkeys.cc determine_input_device()
+// determine likely keyboard device file path via /proc/bus/input/devices
 static std::string determineInputDevice(void) {
-    // Look for devices with keybit bitmask that has keys a keyboard doeas
-    // If a bitmask ends with 'e', it supports KEY_2, KEY_1, KEY_ESC, and KEY_RESERVED is set to 0, so it's probably a keyboard
+    // Look for devices with keybit bitmask conataining standard keyboard keys
+    // If a bitmask ends with 'e', it supports KEY_2, KEY_1, KEY_ESC, and
+    //    KEY_RESERVED is set to 0, so it's probably a keyboard
     // keybit:   https://github.com/torvalds/linux/blob/02de58b24d2e1b2cf947d57205bd2221d897193c/include/linux/input.h#L45
     // keycodes: https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/include/uapi/linux/input-event-codes.h#L75
     // Take the Name, Handlers, and KEY values
     const char* cmd = EXE_GREP " -B8 -E 'KEY=.*e$' /proc/bus/input/devices | "
         EXE_GREP " -E 'Name|Handlers|KEY' ";
-    std::stringstream output(getShellCmdOutput(cmd));
+    std::istringstream output(getShellCmdOutput(cmd));
 
-    std::vector<std::string> devices;
+    std::vector<std::string> device_filenames;
     std::vector<unsigned short> scores;
     std::string line;
 
@@ -181,18 +209,17 @@ static std::string determineInputDevice(void) {
     // B: KEY=402000000 3803078f800d001 feffffdfffefffff fffffffffffffffe
     // ```
     enum { Name, Handlers, KEY };
-    for (unsigned short line_type { 0 }, score { 0 }; std::getline(output, line);) {
+    for (unsigned short line_type { 0 }, score { 0 };
+         std::getline(output, line);) {
         // TBD: passsing std::tolower causes problem with unresolved overload,
         //   but global ::tolower works
         // Further, it looks like cctype or ctype.h has been included by another header
         std::transform(line.begin(), line.end(), line.begin(), ::tolower);
-        switch (line_type) {
-        case Name:
+        if (line_type == Name) {
             // Generate score based on device name
             if (line.find("keyboard") != std::string::npos)
                 score += 100;
-            break;
-        case Handlers: {
+        } else if (line_type == Handlers) {
             // Add the event handler
             std::string::size_type i { line.find("event") };
             if (i != std::string::npos) {
@@ -201,70 +228,76 @@ static std::string determineInputDevice(void) {
                     int index { std::atoi(line.c_str() + i) };
                     std::stringstream input_dev_path;
                     input_dev_path << INPUT_EVENT_PATH << "event" << index;
-                    devices.emplace_back(input_dev_path.str());
+                    device_filenames.emplace_back(input_dev_path.str());
                 }
             }
-            break;
-        }
-        case KEY: {
+        } else if (line_type == KEY) {
             // Generate score based on size of key bitmask
             std::string::size_type i { line.find("=") };
             std::string full_key_map { line.substr(i + 1) };
             score += full_key_map.length();
             scores.emplace_back(score);
             score = 0;
-            break;
-        }
-        default: break;
         }
         line_type = (line_type + 1) % 3;
     }
 
-    if (devices.size() == 0) {
-        // TBD: standardize error returns
-        std::cerr << "Couldn't determine keyboard device.\n";
-        exit(EXIT_FAILURE);
+    std::ostringstream error_msg;
+    if (device_filenames.size() == 0) {
+        error_msg << __FUNCTION__ << ": couldn't determine keyboard device file";
+        throw std::runtime_error(error_msg.str());
     }
 
     // Choose device with the best score
-    int max_device_i { static_cast<int>(
-            std::max_element(scores.begin(), scores.end()) - scores.begin()) };
-    return devices[max_device_i];
+    auto max_device_i {
+            std::max_element(scores.begin(), scores.end()) - scores.begin() };
+    return device_filenames[max_device_i];
+}
+
+static std:: string generateGrabMessage(std::string exec_filename) {
+    std::ostringstream msg;
+    static constexpr uint16_t msg_width { 100 };
+    static std::string msg_border ( msg_width, '*' );
+    static constexpr char msg_line_1_prefix[] { "WARNING! Process " };
+    static constexpr char msg_line_1_suffix[] { " is grabbing keyboard events." };
+    static constexpr char msg_line_2[] {
+        "Please maintain keyboard focus on this tty until ungrab message appears." };
+    msg << '\n';
+    msg << msg_border << '\n';
+    msg << '\t' << msg_line_1_prefix << static_cast<int>(getpid()) <<
+        ": " << exec_filename << msg_line_1_suffix << '\n';
+    msg << '\t' << msg_line_2 << '\n';
+    msg << msg_border << std::endl;
+    return msg.str();
 }
 
 // check if on pty or tty
-static void determineCaptureTty(std::string exec_filename) {
+static void determineTtys(std::string& exec_filename,
+                          std::string& input_tty_name, std::string& display_tty_name) {
     // Use of ttyname taken from coreutils tty, see:
     //  - https://github.com/coreutils/coreutils/blob/master/src/tty.c
     std::string curr_tty_name {
         safeCExec(ttyname, "ttyname", (char*)nullptr, STDIN_FILENO) };
     char *SSH_TTY { getenv("SSH_TTY") };
+    display_tty_name = curr_tty_name;
 
     // Current tty is true tty with hardware access
     if (curr_tty_name.find("tty") != std::string::npos && SSH_TTY == nullptr) {
-        std::cout << "Terminal focus for input: " << curr_tty_name << " (current)\n";
-        std::cout << "Terminal output sent to: " << curr_tty_name << " (current)\n";
+        input_tty_name = curr_tty_name;
         return;
     }
-
     // Current tty is pty and/or ssh session
     // Need to find and nominate a true tty for input capture
     std::ofstream ofs;
-    uint16_t msg_width { 100 };
-    std::string msg_border ( msg_width, '*' );
-    constexpr char msg_line_1_prefix[] { "WARNING! Process " };
-    constexpr char msg_line_1_suffix[] { " is grabbing keyboard events."};
-    constexpr char msg_line_2[] {
-        "Please maintain keyboard focus on this tty until ungrab message appears." };
-
     std::string candidate_tty_name;
     bool valid_input_tty_found;
     // Use of utmp taken from coreutils who, see:
     //  - https://github.com/coreutils/coreutils/blob/master/src/who.c
     //  - https://github.com/coreutils/gnulib/blob/master/lib/readutmp.h
     struct utmp *ut;
+    // Note: man 3 getutent prescribes calling setutent first as a best practice,
+    //   but in testing it fails here with ENOENT, so we don't use safeCExecVoidRet
     // Open _PATH_UTMP (eg /var/run/utmp)
-    // Note: in testing setutent will set ENOENT even on success, so we do not use safeCExecVoidRet
     setutent();
     while ((ut = getutent()) != nullptr) {
         // USER_PROCESS: normal process with attached username that is not LOGIN
@@ -276,12 +309,7 @@ static void determineCaptureTty(std::string exec_filename) {
                 ofs.open(candidate_tty_name);
                 if (ofs.is_open()) {
                     valid_input_tty_found = true;
-                    ofs << '\n';
-                    ofs << msg_border << '\n';
-                    ofs << '\t' << msg_line_1_prefix << static_cast<int>(getpid()) <<
-                        ": " << (exec_filename.c_str() + 2) << msg_line_1_suffix << '\n';
-                    ofs << '\t' << msg_line_2 << '\n';
-                    ofs << msg_border << std::endl;
+                    ofs << generateGrabMessage(exec_filename);
                     ofs.close();
                     break;
                 }
@@ -292,27 +320,44 @@ static void determineCaptureTty(std::string exec_filename) {
     safeCExecVoidRet(endutent, "endutent");
 
     if (!valid_input_tty_found) {
-        std::cout << "No non-pty tty found, cannot capture any keyboard events!\n";
-        exit(EXIT_FAILURE);
+        std::ostringstream error_msg;
+        error_msg << __FUNCTION__ << ": No non-pty tty found, cannot capture " <<
+            " any keyboard events" << std::endl;
+        throw std::runtime_error(error_msg.str());
     }
-    std::cout << "Terminal focus for input: " << candidate_tty_name << "\n";
-    std::cout << "Terminal output sent to: " << curr_tty_name << " (current)\n";
+    input_tty_name = candidate_tty_name;
 }
 
-void KeyHandler::initialize(std::string exec_filename) {
-    // determine likely keboard device file path via /proc/bus/input/devices
+void KeyHandler::grabDevice(std::string& exec_filename) {
+    std::ostringstream error_msg;
+
+    kbd_device_fd = safeCExec(open, "open", (int)-1,
+                              kbd_device_path.c_str(), O_RDONLY);
+    try {
+        safeCExec(ioctl, "ioctl", (int)-1, kbd_device_fd, EVIOCGRAB, (void*)1);
+    } catch (std::runtime_error& re) {
+        safeCExec(ioctl, "ioctl", (int)-1, kbd_device_fd, EVIOCGRAB, (void*)0);
+        throw re;
+    }
+    std::ofstream ofs;
+    ofs.open(input_tty_name);
+    if (ofs.is_open()) {
+        ofs << generateGrabMessage(exec_filename);
+        ofs.close();
+    }
+}
+
+void KeyHandler::initialize(std::string& exec_filename) {
     kbd_device_path = determineInputDevice();
     std::cout << "Selected keyboard device path: " << kbd_device_path << '\n';
-    kbd_fd = safeCExec(open, "open", (int)-1, kbd_device_path.c_str(), O_RDONLY);
-    if (testGrabDevice(kbd_fd) != 0) {
-        std::cerr << "Failure to grab device \"" << kbd_device_path <<
-            "\": check that it is not already grabbed by X." <<
-            std::endl;
-        exit(EXIT_FAILURE);
-    }
 
-    determineCaptureTty(exec_filename);
+    grabDevice(exec_filename);
 
-    FD_ZERO(&rdfds);     // init fd_set
-    FD_SET(kbd_fd, &rdfds);  // add kbd_fd to read fd set
+    // fd_set used by select() in getKeyEvents
+    FD_ZERO(&rdfds);
+    FD_SET(kbd_device_fd, &rdfds);
+
+    determineTtys(exec_filename, input_tty_name, display_tty_name);
+    std::cout << "Terminal focus for input: " << input_tty_name << "\n";
+    std::cout << "Terminal output sent to: " << display_tty_name << "\n";
 }

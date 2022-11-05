@@ -1,5 +1,6 @@
 #include "../include/Layout.hh"
 //#include "../include/Matrix.hh"
+
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -9,10 +10,10 @@
 // parsing map file into map in memory
 Layout::Layout(std::string map_filename/*, Vector2d& pos*/) {
     std::ifstream map_file(map_filename);
+    std::ostringstream err_msg;
     if (!map_file.is_open()) {
-        std::string err_msg { "Could not open map file: " };
-        err_msg += map_filename;
-        throw std::runtime_error(err_msg);
+        err_msg << "Could not open map file: " << map_filename;
+        throw std::runtime_error(err_msg.str());
     }
     std::string line;
     bool viable_start_exists = false;
@@ -28,9 +29,9 @@ Layout::Layout(std::string map_filename/*, Vector2d& pos*/) {
         for (uint32_t i {0}; line[i] != '\0'; ++i) {
             if (line[i] == 'x') {
                 if (chosen_start_exists) {
-                    std::cout <<
-                        "Mulitple start points specified. Check your map!!" << std::endl;
-                    exit(EXIT_FAILURE);
+                    err_msg <<
+                        "Mulitple start points specified. Check your map!!";
+                    throw std::runtime_error(err_msg.str());
                 }
                 chosen_start_exists = true;
                 viable_start_exists = true;
@@ -51,9 +52,9 @@ Layout::Layout(std::string map_filename/*, Vector2d& pos*/) {
                 // pad out non-rectangular western maze edges on map
                 row.emplace_back(1);
             } else {
-                std::cout <<
-                    "Unrecognized character in map encoding. Check your map!!" << std::endl;
-                exit(EXIT_FAILURE);
+                err_msg <<
+                    "Unrecognized character in map encoding. Check your map!!";
+                throw std::runtime_error(err_msg.str());
             }
         }
         // columns set to max width of variable width maps
@@ -63,9 +64,9 @@ Layout::Layout(std::string map_filename/*, Vector2d& pos*/) {
     }
     map_file.close();
     if (!viable_start_exists) {
-        std::cout <<
-            "No valid start location possible! Check your map!!" << std::endl;
-        exit(EXIT_FAILURE);
+        err_msg <<
+            "No valid start location possible! Check your map!!";
+        throw std::runtime_error(err_msg.str());
     }
     for (auto & row: map) {
         // pad out non-rectangular eastern maze edges on map
@@ -80,8 +81,11 @@ Layout::Layout(std::string map_filename/*, Vector2d& pos*/) {
     map.insert(map.begin(), std::vector<int>(columns, 1));
     map.push_back(std::vector<int>(columns, 1));
     rows += 2;
+
+    // set starting position
     //pos(0) += 1.5;
     //pos(1) += 1.5;
+    
     std::cout << "parsed map:\n";
     for (const auto &row : map) {
         for (const auto &tile : row)

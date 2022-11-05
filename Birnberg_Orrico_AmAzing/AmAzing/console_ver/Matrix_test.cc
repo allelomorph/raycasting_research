@@ -30,4 +30,14 @@ int main() {
 
     m2d << 10.1, 10.2, 20.1, 20.2;
     std::cout << m2d << '\n';
+
+    std::cout << m2d.cwiseInverse() << '\n';
+    m2d(0) = -m2d(1);
+    m2d(2) = -m2d(3);
+    std::cout << m2d << '\n';
+    std::cout << m2d.cwiseAbs() << '\n';
+
+    int i {1};
+    m2d.minCoeff(&i);
+    std::cout << i << ' ' << m2d(i) << '\n';
 }

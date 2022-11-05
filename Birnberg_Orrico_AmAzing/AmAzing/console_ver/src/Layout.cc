@@ -1,14 +1,14 @@
-#include "../include/Layout.hh"
-//#include "../include/Matrix.hh"
+#include "Layout.hh"
+#include "Matrix.hh"   // Vector2d
 
 #include <iostream>
-#include <fstream>
+#include <fstream>     // ifstream
+#include <sstream>     // ostringstream
 #include <string>
 
-// used Eigen::Vector2d, Eigen::Vector2d::operator()
 
 // parsing map file into map in memory
-Layout::Layout(std::string map_filename/*, Vector2d& pos*/) {
+Layout::Layout(std::string map_filename, Vector2d& pos) {
     std::ifstream map_file(map_filename);
     std::ostringstream err_msg;
     if (!map_file.is_open()) {
@@ -35,16 +35,16 @@ Layout::Layout(std::string map_filename/*, Vector2d& pos*/) {
                 }
                 chosen_start_exists = true;
                 viable_start_exists = true;
-                //pos(0) = rows - 1;
-                //pos(1) = i;
+                pos(0) = rows - 1;
+                pos(1) = i;
                 row.emplace_back(0);
             } else if (std::isdigit(line[i])) {
                 // default start is first empty map tile found
                 //   (most northern, then eastern)
                 if (!viable_start_exists && line[i] == '0') {
                     viable_start_exists = true;
-                    //pos(0) = rows - 1;
-                    //pos(1) = i;
+                    pos(0) = rows - 1;
+                    pos(1) = i;
                 }
                 // TBD: C++ idiomatic conversion of digit char?
                 row.emplace_back(line[i] - '0');
@@ -83,9 +83,10 @@ Layout::Layout(std::string map_filename/*, Vector2d& pos*/) {
     rows += 2;
 
     // set starting position
-    //pos(0) += 1.5;
-    //pos(1) += 1.5;
-    
+    // TBD: why this modifier on `pos(0) = rows - 1; pos(1) = i;`?
+    pos(0) += 1.5;
+    pos(1) += 1.5;
+
     std::cout << "parsed map:\n";
     for (const auto &row : map) {
         for (const auto &tile : row)

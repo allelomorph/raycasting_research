@@ -1,4 +1,5 @@
 #include "App.hh"
+#include "Matrix.hh"      // Matrix2d Vector2d
 
 #include <time.h>         // clock clock_t CLOCKS_PER_SEC
 #include <csignal>        // signal SIG* sig_atomic_t
@@ -6,9 +7,14 @@
 
 #include <iostream>
 #include <iomanip>        // setw
+#include <string>
 
 #include <sys/types.h>    // pid_t
 #include <unistd.h>       // getpid
+
+#include <cmath>          // sin cos
+
+//#include <functional>  // ref see TBD in initialize
 
 
 void FpsCalculator::initialize() {
@@ -46,14 +52,18 @@ static void interrupt_handler(int /*signal*/) {
 }
 
 void App::initialize() {
-    // parse map file
+    // parse map file, also sets pos
     try {
-        state->layout = new Layout(map_filename/*, std::ref(state->pos)*/);
+        // TBD: why std::ref to create a reference_wrapper here?
+        state->layout = new Layout(map_filename, /*std::ref(*/state->pos/*)*/);
     } catch (std::runtime_error &re) {
         std::cerr << re.what() << std::endl;
         state->done = true;
         return;
     }
+
+    state->dir << 0, 1;
+    state->viewPlane << 2.0/3, 0;
 
     fps_calc.initialize();
     state->key_handler.initialize(exec_filename);
@@ -72,37 +82,54 @@ void App::run() {
 
         printDebugHUD();
     }
+
+    // erases last frame printed to terminal
+    // TBD: make function and/or coordinate with screen height macro for CSI_CURSOR_UP
+    constexpr uint32_t display_lines { 5 };
+    for (uint32_t i { 0 }; i < display_lines; ++i)
+        std::cout << std::string(100, ' ') << '\n';
+    // TBD: macro can't take variable name
+    std::cout << CSI_CURSOR_UP(5);
 }
 
 void App::getEvents() {
     state->key_handler.getKeyEvents();
 }
 
+static Vector2d rotate2d(Vector2d vector, double rotSpeed) {
+    Matrix2d rotate;
+    rotate <<
+        std::cos(rotSpeed), -std::sin(rotSpeed),
+        std::sin(rotSpeed), std::cos(rotSpeed);
+    return (rotate * vector);
+}
+
 void App::updateData() {
-    // frameTime == fps_calc.moving_avg_frame_time
+    // TBD: rationale for these calcs?
+    double moveSpeed { fps_calc.moving_avg_frame_time * 4 };
+    double rotSpeed  { fps_calc.moving_avg_frame_time * 2 };
+
     // q or escape keys: quit
     if (state->key_handler.isPressed(KEY_Q) ||
         state->key_handler.isPressed(KEY_ESC)) {
         state->done = true;
         return;
     }
+
     // left arrow key: rotate left
-    /*
-    if (state->keyHandler.isPressed(KEY_LEFT)) {
+    if (state->key_handler.isPressed(KEY_LEFT)) {
         state->dir = rotate2d(state->dir, rotSpeed);
         state->viewPlane = rotate2d(state->viewPlane, rotSpeed);
     }
-    */
+
     // right arrow key: roatate right
-    /*
-    if (state->keyHandler.isPressed(KEY_RIGHT)) {
+    if (state->key_handler.isPressed(KEY_RIGHT)) {
         state->dir = rotate2d(state->dir, -rotSpeed);
         state->viewPlane = rotate2d(state->viewPlane, -rotSpeed);
     }
-    */
+
     // up arrow key: move forward
-    /*
-    if (state->keyHandler.isPressed(KEY_UP)) {
+    if (state->key_handler.isPressed(KEY_UP)) {
         double tmp = state->pos(0);
         if (!state->layout->map[int(state->pos(0) + state->dir(0) * moveSpeed)][int(state->pos(1))]) {
             state->pos(0) += state->dir(0) * moveSpeed;
@@ -111,46 +138,37 @@ void App::updateData() {
             state->pos(1) += state->dir(1) * moveSpeed;
         }
     }
-    */
+
     // down arrow key: move backward
-    /*
-    if (state->keyHandler.isPressed(KEY_DOWN)) {
+    if (state->key_handler.isPressed(KEY_DOWN)) {
         double tmp = state->pos(0);
         if (!state->layout->map[int(state->pos(0) - state->dir(0) * moveSpeed)][int(state->pos(1))])
             state->pos(0) -= state->dir(0) * moveSpeed;
         if (!state->layout->map[int(tmp)][int(state->pos(1) - state->dir(1) * moveSpeed)])
             state->pos(1) -= state->dir(1) * moveSpeed;
     }
-    */
-    // a key: TBD: ??? strafe?
-    /*
-    if (state->keyHandler.isPressed(KEY_A)) {
+
+    // a key: move left (strafe)
+    if (state->key_handler.isPressed(KEY_A)) {
         double tmp = state->pos(0);
         if (!state->layout->map[int(state->pos(0) - state->dir(1) * moveSpeed)][int(state->pos(1))])
             state->pos(0) -= state->dir(1) * moveSpeed;
         if (!state->layout->map[int(tmp)][int(state->pos(1) + state->dir(0) * moveSpeed)])
             state->pos(1) += state->dir(0) * moveSpeed;
     }
-    */
-    // d key: TBD: ??? strafe?
-    /*
-    if (state->keyHandler.isPressed(KEY_D)) {
+
+    // d key: move right (strafe)
+    if (state->key_handler.isPressed(KEY_D)) {
         double tmp = state->pos(0);
         if (!state->layout->map[int(state->pos(0) + state->dir(1) * moveSpeed)][int(state->pos(1))])
             state->pos(0) += state->dir(1) * moveSpeed;
         if (!state->layout->map[int(tmp)][int(state->pos(1) - state->dir(0) * moveSpeed)])
             state->pos(1) -= state->dir(0) * moveSpeed;
     }
-    */
-    // p key: (un)pause music
-    /*
-    if (state->keyHandler.isPressed(SDLK_p) && Mix_PlayingMusic())
-        Mix_PauseMusic();
-    else if (state->keyHandler.isReleased(SDLK_p) && Mix_PausedMusic())
-        Mix_ResumeMusic();
-    */
+
     // f key: toggle FPS
     state->showFPS = state->key_handler.isPressed(KEY_F);
+
     // m key: toggle map overlay
     state->showMap = state->key_handler.isPressed(KEY_M);
 }
@@ -161,11 +179,13 @@ void App::printDebugHUD() {
     std::cout << "\tflags: done: " << std::setw(5) << state->done <<
         " showFPS: " << std::setw(5) << state->showFPS <<
         " showMap: " << std::setw(5) << state->showMap << '\n';
+    std::cout << "\tpos: " << state->pos << " dir: " << state->dir <<
+        " viewPlane: " << state->viewPlane << '\n';
     std::cout << "FPS: " << (1 / fps_calc.moving_avg_frame_time) << '\n';
 
     for (const auto& pair : state->key_handler.key_states) {
         auto key { pair.second };
         std::cout /*<< std::setw(6)*/ << pair.second.repr << ": " << std::noboolalpha << key.isPressed() << ' ';
     }
-    std::cout << '\n' << CSI_CURSOR_UP(4);
+    std::cout << '\n' << CSI_CURSOR_UP(5);
 }

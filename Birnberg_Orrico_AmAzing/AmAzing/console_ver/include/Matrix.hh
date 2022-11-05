@@ -28,12 +28,14 @@ private:
         return (row_i * column_ct) + col_i;
     }
     */
+
+    // Matrix members used in CommaInitializer definition, need to forward declare
+    class CommaInitializer;
+
 public:
     using scalar_type   = ScalarType;
     using iterator_type = decltype(array_repr.begin());
 
-    // forward declare to first complete definition of Matrix
-    class MatrixCommaInitializer;
 
     // https://stackoverflow.com/questions/8569029/c-is-it-possible-to-friend-all-instances-of-a-template-class
     template<typename FriendScalarType,
@@ -42,19 +44,18 @@ public:
 
     // constructors
     Matrix() {
-        static_assert(ColumnSize > 0 && RowSize > 0,
-                      "Matrix height and width minimums of 1 coefficient");
+        static_assert(ColumnSize > 1 && RowSize > 0,
+                      "Matrix height minimum of 2 and width minimum of 1 (Vector)");
     }
 
-    // TBD: does not protect against non-convertible types
+    // Seems to enforce uniform param type in that next upacked parameter is ScalarType
     // https://www.appsloveworld.com/cplus/100/38/templates-how-to-control-number-of-constructor-args-using-template-variable
     template <typename... ConstructorParamTypes>
     Matrix(typename std::enable_if<
+           (ColumnSize > 1 && RowSize > 0) &&
            sizeof...(ConstructorParamTypes) + 1 == RowSize * ColumnSize, ScalarType>::type param,
            ConstructorParamTypes... params)
         : array_repr { param, ScalarType(params)... } {
-        static_assert(ColumnSize > 0 && RowSize > 0,
-                      "Matrix height and width minimums of 1 coefficient");
     }
 
     scalar_type* begin() { return array_repr.begin(); }
@@ -91,49 +92,11 @@ public:
         return product;
     }
 
-/*
-    template <typename SquareBracketsIndexType>
-    auto operator[](const SquareBracketsIndexType &s) -> typename std::enable_if<
-        std::is_integral<SquareBracketsIndexType>::value, scalar_type&>::type {
-        assert(s > 0 && s < (SquareBracketsIndexType)array_repr.size());
-        if (row_ct == 1)
-            return array_repr[s];
-        iterator_type arr_it { begin() + (s * column_ct) };
-        std::array<scalar_type, column_ct> row;
-        for (auto &coeff : row)
-            coeff = *arr_it++;
-        return row;
-    }
-*/
-
-    // operator+(Vector2d) ?
-/*
-https://eigen.tuxfamily.org/dox/classEigen_1_1VectorwiseOp.html#a713694459d81b76e4f2a78e4d169f8d6
-https://www.khanacademy.org/math/precalculus/x9e81a4f98389efdf:matrices/x9e81a4f98389efdf:properties-of-matrix-addition-and-scalar-multiplication/a/properties-of-matrix-addition
-https://byjus.com/maths/matrix-addition/
-*/
-    /*
-    template <typename MatrixType>
-    Matrix Matrix::operator+(const MatrixType& m) {
-        if (matrix[0].size() != m.matrix[0].size() ||
-            matrix.size() != m.matrix.size()) {
-            throw std::range_error(
-                "Cannot add two Matrix objects of different orders (ColumnSize and RowSize)");
-        }
-        // TBD: return new Matrix that is modified version of this, different from +=
-        for (uint32_t i {0}; i < matrix.size(); ++i) {
-            for (uint32_t j {0}; j < matrix[0].size(); ++j) {
-                matrix[i][j] += m.matrix[i][j];
-            }
-        }
-    }
-    */
-
-    // index in array representation
+    // Matrix(index in array representation)
     template <typename ParenthesesIndexType>
     auto operator()(const ParenthesesIndexType &s) -> typename std::enable_if<
         std::is_integral<ParenthesesIndexType>::value, scalar_type&>::type {
-        assert(s > 0 && s < (ParenthesesIndexType)array_repr.size());
+        assert(s >= 0 && s < (ParenthesesIndexType)array_repr.size());
         return array_repr[s];
     }
 
@@ -141,81 +104,81 @@ https://byjus.com/maths/matrix-addition/
     template <typename MinCoeffIndexType>
     auto minCoeff(MinCoeffIndexType *index) -> typename std::enable_if<
         std::is_integral<MinCoeffIndexType>::value, void>::type {
-        *index = *(std::min_element(array_repr.begin(), array_repr.end()));
+        *index = std::min_element(array_repr.begin(), array_repr.end()) -
+            array_repr.begin();
     }
 
     // https://www.eigen.tuxfamily.org/dox/group__CoeffwiseMathFunctions.html
-    void cwiseAbs() {
-        for (auto &coeff : array_repr)
+    Matrix cwiseAbs() {
+        Matrix result { *this };
+        for (auto &coeff : result.array_repr)
             coeff = std::abs(coeff);
+        return result;
     }
 
     // https://www.eigen.tuxfamily.org/dox/group__CoeffwiseMathFunctions.html
-    void cwiseInverse()  {
-        for (auto &coeff : array_repr)
+    Matrix cwiseInverse()  {
+        Matrix result { *this };
+        for (auto &coeff : result.array_repr)
             coeff = 1 / coeff;
+        return result;
     }
 
-    // TBD: why are these declarations acting differnently?
     // https://stackoverflow.com/questions/4039817/friend-declaration-declares-a-non-template-function
     // https://www.ibm.com/docs/en/zos/2.3.0?topic=only-friends-templates-c
-    template<typename _ScalarType, uint32_t _ColumnSize, uint32_t _RowSize>
-    friend std::ostream& operator<<(
-        std::ostream& os, const Matrix<_ScalarType, _ColumnSize, _RowSize>& m);
-
-    // https://stackoverflow.com/questions/17075506/operator-on-comma-separated-values-in-c
-    // https://eigen.tuxfamily.org/dox/classEigen_1_1DenseBase.html#a0e575eb0ba6cc6bc5f347872abd8509d:
-    // mulitple terms with << popoulate matrix in level order (syntax is Matrix << val1, val2...;)
-/*
-    template <typename InputScalarType>
-    friend MatrixCommaInitializer operator<<(Matrix& m, InputScalarType val);
-*/
-    template<typename _FriendScalarType,
-             uint32_t _FriendColumnSize, uint32_t _FriendRowSize>
-    friend MatrixCommaInitializer operator<<(Matrix& m, double val);
-
-};
-
-template<typename ScalarType, uint32_t ColumnSize, uint32_t RowSize>
-std::ostream& operator<<(std::ostream& os,
-                         const Matrix<ScalarType, ColumnSize, RowSize>& m) {
-    os << '{';
-    for (uint32_t row_i { 0 }; row_i < m.row_ct; ++row_i) {
+    // Defining templated friend functions inside a templated class saves on
+    //   verbosity, see:
+    //   - https://en.wikibooks.org/wiki/More_C%2B%2B_Idioms/Making_New_Friends
+    friend std::ostream& operator<<(std::ostream& os,
+                                    const Matrix<ScalarType, ColumnSize, RowSize>& m) {
         os << '{';
-        for (uint32_t col_i { 0 }; col_i < m.column_ct; ++col_i) {
-            os << m.array_repr[(row_i * m.column_ct) + col_i];
-            if (col_i < m.column_ct - 1)
+        for (uint32_t row_i { 0 }; row_i < m.row_ct; ++row_i) {
+            os << '{';
+            for (uint32_t col_i { 0 }; col_i < m.column_ct; ++col_i) {
+                os << m.array_repr[(row_i * m.column_ct) + col_i];
+                if (col_i < m.column_ct - 1)
+                    os << ", ";
+            }
+            os << '}';
+            if (row_i < m.row_ct - 1)
                 os << ", ";
         }
-        os << '}';
-        if (row_i < m.row_ct - 1)
-            os << ", ";
+        return os << '}';
     }
-    return os << '}';
-}
 
-// Vector types are _column_ vectors
-using Vector2i = Matrix<int, 2, 1>;
-using Vector2d = Matrix<double, 2, 1>;
-using Matrix2d = Matrix<double, 2, 2>;
+    template <typename InputScalarType>
+    using CommaInit_return_if_scalar_input = typename std::enable_if<
+        std::is_scalar<InputScalarType>::value,
+        typename Matrix<ScalarType, ColumnSize, RowSize>::CommaInitializer>::type;
 
+    // https://eigen.tuxfamily.org/dox/classEigen_1_1DenseBase.html#a0e575eb0ba6cc6bc5f347872abd8509d
+    // https://stackoverflow.com/questions/17075506/operator-on-comma-separated-values-in-c
 
+    template <typename InputScalarType>
+    friend auto operator<<(Matrix<ScalarType, ColumnSize, RowSize>& m,
+                           InputScalarType val) -> CommaInit_return_if_scalar_input<InputScalarType> {
+        typename Matrix<
+            ScalarType, ColumnSize, RowSize>::CommaInitializer comma_initializer(m, m.begin());
+        return (comma_initializer, val);
+    }
+};
+
+// adapted from OpenCV, which uses similar <</, overloads to Eigen
+// https://github.com/opencv/opencv/blob/HEAD/modules/core/include/opencv2/core/mat.hpp#L523
+// https://github.com/opencv/opencv/blob/HEAD/modules/core/include/opencv2/core/mat.inl.hpp#L2972
 template <typename ScalarType, uint32_t ColumnSize, uint32_t RowSize>
-class Matrix<ScalarType, ColumnSize, RowSize>::MatrixCommaInitializer {
+class Matrix<ScalarType, ColumnSize, RowSize>::CommaInitializer {
 public:
-    //using matrix_type = Matrix/*<ScalarType, ColumnSize, RowSize>*/;
-    using iterator_type = decltype(Matrix().begin());
-    //using iterator_type = Matrix<ScalarType, ColumnSize, RowSize>::iterator_type;
-    //using Matrix::iterator_type;
+    using iterator_type = Matrix::iterator_type;
 
-    // constructor, created by "matrix << firstValue" operator
-    MatrixCommaInitializer(Matrix& mat, iterator_type iter) :
+    // constructor, created by `Matrix << first_scalar` operator
+    CommaInitializer(Matrix& mat, iterator_type iter) :
         matrix {mat}, it {iter} {}
 
-    // operator that takes the next value and put into the matrix
+    // overloading comma operator allows Matrix population with `Matrix << v1, v2, ...`
     template<typename ScalarInputType>
         auto operator,(ScalarInputType v) -> typename std::enable_if<
-            std::is_scalar<ScalarInputType>::value, MatrixCommaInitializer&>::type {
+            std::is_scalar<ScalarInputType>::value, CommaInitializer&>::type {
         assert( it < matrix.end() );
         *it = ScalarType(v);
         ++it;
@@ -228,16 +191,10 @@ private:
 };
 
 
-template <typename ScalarType, uint32_t ColumnSize, uint32_t RowSize,
-          typename InputScalarType>
-auto operator<<(
-    Matrix<ScalarType, ColumnSize, RowSize>& m, InputScalarType val) -> typename std::enable_if<
-    std::is_scalar<InputScalarType>::value,
-    typename Matrix<ScalarType, ColumnSize, RowSize>::MatrixCommaInitializer>::type {
-    typename Matrix<
-        ScalarType, ColumnSize, RowSize>::MatrixCommaInitializer comma_initializer(m, m.begin());
-    return (comma_initializer, val);
-}
+// Vector types are _column_ vectors
+using Vector2i = Matrix<int, 2, 1>;
+using Vector2d = Matrix<double, 2, 1>;
+using Matrix2d = Matrix<double, 2, 2>;
 
 
 #endif  // MATRIX_HH

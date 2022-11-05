@@ -1,8 +1,5 @@
-#include <iomanip>
-#include <iostream>
-#include <cstdint>   // uint16_t
-
 #include "State.hh"
+
 
 State *State::instance = new State;
 

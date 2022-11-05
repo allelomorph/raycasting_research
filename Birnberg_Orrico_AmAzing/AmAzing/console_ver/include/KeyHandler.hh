@@ -13,8 +13,9 @@
 constexpr int UNINITIALIZED_FD  { -1 };
 
 class KeyHandler {
-private:
+public:   // TBD: only public for debug
     std::string input_tty_name;
+private:
     std::string display_tty_name;            // TBD: move this to State if display is encapsulated separately?
     std::string kbd_device_path;
     int kbd_device_fd { UNINITIALIZED_FD };  // need fd to pass to ioctl()

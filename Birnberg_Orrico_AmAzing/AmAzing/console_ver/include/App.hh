@@ -2,11 +2,11 @@
 #define APP_HH
 
 #include "State.hh"
-//#include "../include/Matrix.hh"  // Vector2d Vector2i
+#include "Matrix.hh"  // Vector2d Vector2i
 
-#include <time.h>  // clock_t
+#include <time.h>     // clock_t
 
-#include <csignal>        // sig_atomic_t
+#include <csignal>    // sig_atomic_t
 
 #include <string>
 
@@ -33,13 +33,16 @@ class App {
 public:
     App() = delete;
     App(const char* exec_filename, const char* map_filename);
+    // TBD: rule of 5?
     ~App();
 
     void run();
 private:
     State *state;
+
     std::string exec_filename;
     std::string map_filename;
+
     FpsCalculator fps_calc;
 
     void initialize();

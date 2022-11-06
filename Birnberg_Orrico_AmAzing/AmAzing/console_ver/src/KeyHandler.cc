@@ -4,27 +4,23 @@
 
 #include <linux/input.h>   // input_event EV_* KEY_*
 #include <sys/ioctl.h>     // ioctl EVIOCGRAB
-#include <unistd.h>        // uid_t gid_t get(set)egid get(set)euid getpid
-#include <pwd.h>           // passwd getpwnam
+#include <unistd.h>        // getpid ttyname read close
 #include <utmp.h>          // utmp setutent getutent endutent USER_PROCESS
 #include <sys/select.h>    // FD_ZERO FD_SET
-#include <sys/types.h>     // open gid_t uid_t pid_t
+#include <sys/types.h>     // open pid_t
 #include <sys/stat.h>      // open
 #include <fcntl.h>         // open
 
-#include <cstdio>         // popen FILE perror feof fgets pclose
 #include <cstdlib>        // atoi exit getenv
 #include <cctype>         // isdigit tolower
 
 #include <vector>
 #include <string>         // getline
 #include <algorithm>      // transform max_element
-#include <array>
 #include <fstream>
 #include <iostream>       // cerr
 
 // used by determineInputDevice
-#define EXE_GREP           "/bin/grep"
 #define INPUT_EVENT_PATH   "/dev/input/"
 
 
@@ -141,117 +137,116 @@ void KeyHandler::getKeyEvents() {
     }
 }
 
-// forks into child, executes cmd and returns string output
-// adapted from https://github.com/kernc/logkeys/blob/master/src/logkeys.cc execute()
-// sete(gid|uid) requires root
-static std::string getShellCmdOutput(const char* cmd) {
-    // Likely running main either as root or as member of `input` group
-    // man getegid(2), geteuid(2): "These functions are always successful."
-    gid_t gid { getegid() };
-    uid_t uid { geteuid() };
-
-    std::string result;
-    std::ostringstream error_msg;
-    error_msg << __FUNCTION__ << ": ";
-    bool error { false };
-
-    try {
-        // For safety, while running other programs, switch user to nobody
-        // Note: only priveledged users can set gid and uid, expecting root
-        struct passwd* nobody_pwd {
-            safeCExec(getpwnam, "getpwnam", (struct passwd*)nullptr, "nobody") };
-        safeCExec(setegid, "setegid", (int)-1, nobody_pwd->pw_gid);
-        safeCExec(seteuid, "seteuid", (int)-1, nobody_pwd->pw_uid);
-
-        // forks into child and returns cmd output on "r"
-        FILE* pipe { safeCExec(popen, "popen", (FILE*)nullptr, cmd, "r") };
-        char buffer[128];
-        while (!std::feof(pipe)) {
-            if (std::fgets(buffer, 128, pipe) != nullptr)
-                result += buffer;
-        }
-        safeCExec(pclose, "pclose", (int)-1, pipe);
-    } catch (std::exception &e) {
-        error = true;
-        error_msg << e.what();
-    }
-
-    // restore original user and group
-    safeCExec(setegid, "setegid", (int)-1, gid);
-    safeCExec(seteuid, "seteuid", (int)-1, uid);
-
-    if (error)
-        throw std::runtime_error(error_msg.str());
-    return result;
-}
-
-// adapted from https://github.com/kernc/logkeys/blob/master/src/logkeys.cc determine_input_device()
+// inspired by https://github.com/kernc/logkeys/blob/master/src/logkeys.cc
+//    determine_input_device(), but parses file directly rather than popen(grep...)
 // determine likely keyboard device file path via /proc/bus/input/devices
 static std::string determineInputDevice(void) {
-    // Look for devices with keybit bitmask conataining standard keyboard keys
-    // If a bitmask ends with 'e', it supports KEY_2, KEY_1, KEY_ESC, and
-    //    KEY_RESERVED is set to 0, so it's probably a keyboard
-    // keybit:   https://github.com/torvalds/linux/blob/02de58b24d2e1b2cf947d57205bd2221d897193c/include/linux/input.h#L45
-    // keycodes: https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/include/uapi/linux/input-event-codes.h#L75
-    // Take the Name, Handlers, and KEY values
-    const char* cmd = EXE_GREP " -B8 -E 'KEY=.*e$' /proc/bus/input/devices | "
-        EXE_GREP " -E 'Name|Handlers|KEY' ";
-    std::istringstream output(getShellCmdOutput(cmd));
-
-    std::vector<std::string> device_filenames;
-    std::vector<unsigned short> scores;
-    std::string line;
-
-    // devices after grep come in 3 lines each, for example:
+    // TBD: make filename a macro/constexpr?
+    std::ifstream ifs( "/proc/bus/input/devices" );
+    std::ostringstream error_msg;
+    if (!ifs.is_open()) {
+        error_msg << __FUNCTION__ << ": couldn't open /proc/bus/input/devices";
+        throw std::runtime_error(error_msg.str());
+    }
+    // Interpretation of /proc/bus/input/devices as linux/input.h `struct
+    //   input_dev`s, see: https://unix.stackexchange.com/questions/74903/
+    // """
+    // I @id: id of the device (struct input_id)
+    //     Bus     => id.bustype
+    //     Vendor  => id.vendor
+    //     Product => id.product
+    //     Version => id.version
+    // N => name of the device
+    // P => physical path to the device in the system hierarchy
+    // S => sysfs path
+    // U => unique identification code for the device (if device has it)
+    // H => list of input handles associated with the device
+    // B => bitmaps
+    //     PROP => device properties and quirks
+    //     EV   => types of events supported by the device
+    //     KEY  => keys/buttons this device has
+    //     MSC  => miscellaneous events supported by the device
+    //     LED  => leds present on the device
+    // """
+    // In local testing, there was no leading whitespace, and every entry
+    //   including the last ends with a blank line, for example:
     // ```
+    // I: Bus=0011 Vendor=0001 Product=0001 Version=ab41
     // N: Name="AT Translated Set 2 keyboard"
+    // P: Phys=isa0060/serio0/input0
+    // S: Sysfs=/devices/platform/i8042/serio0/input/input2
+    // U: Uniq=
     // H: Handlers=sysrq kbd event2 leds
+    // B: PROP=0
+    // B: EV=120013
     // B: KEY=402000000 3803078f800d001 feffffdfffefffff fffffffffffffffe
+    // B: MSC=10
+    // B: LED=7
+    //
     // ```
-    enum { Name, Handlers, KEY };
-    for (unsigned short line_type { 0 }, score { 0 };
-         std::getline(output, line);) {
-        // TBD: passsing std::tolower causes problem with unresolved overload,
-        //   but global ::tolower works
-        // Further, it looks like cctype or ctype.h has been included by another header
-        std::transform(line.begin(), line.end(), line.begin(), ::tolower);
-        if (line_type == Name) {
+    std::string name;
+    std::string handlers;
+    std::string key;
+    std::vector<std::string> device_paths;
+    std::vector<unsigned short> device_scores;
+
+    for (unsigned short score { 0 }; ifs.good();
+         name.clear(), handlers.clear(), key.clear()) {
+        // Get relevant lines from device entry
+        for (std::string line; std::getline(ifs, line) && line.size() > 0;) {
+            if (line.find("N: Name=") != std::string::npos)
+                name = line.substr(8);       // std::string("N: Name=").size()
+            else if (line.find("H: Handlers=") != std::string::npos)
+                handlers = line.substr(12);  // std::string("H: Handlers=").size()
+            else if (line.find("B: KEY=") != std::string::npos)
+                key = line.substr(7);        // std::string("B: KEY=").size()
+        }
+        // Look for devices with keybit bitmask conataining standard keyboard keys
+        // If a bitmask ends with 'e', it supports KEY_2, KEY_1, KEY_ESC, and
+        //    KEY_RESERVED is set to 0, so it's probably a keyboard
+        // keybit:   https://github.com/torvalds/linux/blob/02de58b24d2e1b2cf947d57205bd2221d897193c/include/linux/input.h#L45
+        // keycodes: https://github.com/torvalds/linux/blob/139711f033f636cc78b6aaf7363252241b9698ef/include/uapi/linux/input-event-codes.h#L75
+        if (key[key.size() - 1] == 'e') {
             // Generate score based on device name
-            if (line.find("keyboard") != std::string::npos)
+            // TBD: passsing std::tolower causes problem with unresolved overload,
+            //   but global ::tolower works
+            // Further, it looks like cctype or ctype.h has been included by another header
+            std::transform(name.begin(), name.end(),
+                           name.begin(), ::tolower);
+            if (name.find("keyboard") != std::string::npos)
                 score += 100;
-        } else if (line_type == Handlers) {
+
             // Add the event handler
-            std::string::size_type i { line.find("event") };
+            std::string::size_type i { handlers.find("event") };
             if (i != std::string::npos) {
-                i += 5; // "event".size() == 5
-                if (i < line.size() && std::isdigit(line[i])) {
-                    int index { std::atoi(line.c_str() + i) };
-                    std::stringstream input_dev_path;
-                    input_dev_path << INPUT_EVENT_PATH << "event" << index;
-                    device_filenames.emplace_back(input_dev_path.str());
+                i += 5;  // std::string("event").size()
+                if (i < handlers.size() && std::isdigit(handlers[i])) {
+                    int index { std::atoi(handlers.c_str() + i) };
+                    std::stringstream input_device_path;
+                    input_device_path << INPUT_EVENT_PATH << "event" << index;
+                    device_paths.emplace_back(input_device_path.str());
                 }
             }
-        } else if (line_type == KEY) {
+
             // Generate score based on size of key bitmask
-            std::string::size_type i { line.find("=") };
-            std::string full_key_map { line.substr(i + 1) };
-            score += full_key_map.length();
-            scores.emplace_back(score);
+            i = key.find("=");
+            if (i != std::string::npos)
+                score += key.substr(i + 1).size();
+
+            device_scores.emplace_back(score);
             score = 0;
         }
-        line_type = (line_type + 1) % 3;
     }
+    ifs.close();
 
-    std::ostringstream error_msg;
-    if (device_filenames.size() == 0) {
+    if (device_paths.size() == 0) {
         error_msg << __FUNCTION__ << ": couldn't determine keyboard device file";
         throw std::runtime_error(error_msg.str());
     }
-
-    // Choose device with the best score
     auto max_device_i {
-            std::max_element(scores.begin(), scores.end()) - scores.begin() };
-    return device_filenames[max_device_i];
+            std::max_element(device_scores.begin(),
+                             device_scores.end()) - device_scores.begin() };
+    return device_paths[max_device_i];
 }
 
 static std:: string generateGrabMessage(std::string exec_filename) {

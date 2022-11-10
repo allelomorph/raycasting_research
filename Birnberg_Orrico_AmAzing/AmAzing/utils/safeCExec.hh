@@ -1,3 +1,7 @@
+#ifndef SAFECEXEC_HH
+#define SAFECEXEC_HH
+
+
 // errnoname.c uses C99 designated initializers and must be compiled separately
 //   as C, then linked during C++ compilation
 extern "C" {
@@ -9,9 +13,10 @@ extern "C" {
 
 #include <cstring>    // strerror
 
+
 template<typename FuncPtrType, typename RetType, typename ...ParamTypes>
 RetType safeCExec(FuncPtrType func, std::string func_name,
-                 RetType failure_retval, ParamTypes ...params) {
+                  RetType failure_retval, ParamTypes ...params) {
     errno = 0;
     RetType retval { func(params...) };
     if (retval == failure_retval) {
@@ -27,8 +32,8 @@ RetType safeCExec(FuncPtrType func, std::string func_name,
 }
 
 template<typename FuncPtrType, typename ...ParamTypes>
-void safeCExecVoidRet(FuncPtrType func, std::string func_name,
-                      ParamTypes ...params) {
+void safeCExec(FuncPtrType func, std::string func_name,
+               ParamTypes ...params) {
     errno = 0;
     std::ostringstream msg;
 
@@ -39,3 +44,6 @@ void safeCExecVoidRet(FuncPtrType func, std::string func_name,
         throw std::runtime_error(msg.str());
     }
 }
+
+
+#endif  // SAFECEXEC_HH

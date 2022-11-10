@@ -1,6 +1,7 @@
-#include "../include/KeyHandler.hh"
+#include "KeyHandler.hh"
 
-// TBD: why is keyStates unordered? is there virtue in keeping the key order as declared below?
+
+// TBD: why is keyStates unordered? advanteage in hash map vs binary tree?
 KeyHandler::KeyHandler () {
     keyStates = {
         {SDLK_UP, SDL_RELEASED},
@@ -26,13 +27,18 @@ bool KeyHandler::isReleased(SDL_Keycode keysym) {
 }
 
 void KeyHandler::handleKeyEvent(SDL_KeyboardEvent& e) {
+    // unrecognized key
     if (keyStates.find(e.keysym.sym) == keyStates.end())
         return;
-    // f, m, and e only toggle a keydown state used as a boolean for their respective game settings
-    // whereas all other keys are updated live as pressed by player
-    // TBD: what are f/m/e used for?
-    if (!(e.keysym.sym == SDLK_f || e.keysym.sym == SDLK_m || e.keysym.sym == SDLK_p))
+    // most keys updated live to match keyboard input
+    // f, m, and p instead toggle their down state for every user keypress
+    // TBD: this is redundant when they already set showFPS, showMap, and call
+    //   Mix_(Pause|Resume)Music, respectively
+    if (e.keysym.sym == SDLK_f || e.keysym.sym == SDLK_m ||
+        e.keysym.sym == SDLK_p) {
+        if (e.type == SDL_KEYDOWN)
+            keyStates[e.keysym.sym] = !keyStates[e.keysym.sym];
+    } else {
         keyStates[e.keysym.sym] = e.state;
-    else if (e.type == SDL_KEYDOWN)
-        keyStates[e.keysym.sym] = !keyStates[e.keysym.sym];
+    }
 }

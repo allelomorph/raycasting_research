@@ -64,8 +64,10 @@ public:
      */
     std::size_t size() { return data.size(); }
 
-    ScalarType* begin() { return std::begin(data); }
-    ScalarType* end()   { return std::end(data); }
+    ScalarType* begin()             { return std::begin(data); }
+    const ScalarType* begin() const { return std::begin(data); }
+    ScalarType* end()               { return std::end(data); }
+    const ScalarType* end() const   { return std::end(data); }
 
     void clear(ScalarType value = ScalarType {}) { data = value; }
 
@@ -98,6 +100,23 @@ public:
 
     std::slice_array<ScalarType> column(uint32_t column_i) {
         return data[std::slice(column_i, rows, columns)];
+    }
+
+    /*
+     * @brief addition of two vectors or matrices of the same order (width and
+     *   height)
+     *
+     * @note addition of a vector and a matrix, even when of the same height, is
+     *   undefined, see: - https://math.stackexchange.com/questions/347996/matrix-vector-addition
+     */
+    Matrix operator+(const Matrix& other) {
+        Matrix result { *this };
+        auto other_it { other.begin() };
+        for (auto &coeff : result) {
+            coeff += *other_it;
+            ++other_it;
+        }
+        return result;
     }
 
     /*

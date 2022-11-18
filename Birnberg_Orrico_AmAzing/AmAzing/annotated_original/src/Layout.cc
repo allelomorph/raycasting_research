@@ -1,5 +1,5 @@
 #include "Layout.hh"
-#incldue "Matrix.hh"  // Vector2d Vector2d::operator()
+#include "Matrix.hh"  // Vector2d Vector2d::operator()
 
 #include <cstdlib>
 #include <cstdint>    // uint32_t
@@ -16,10 +16,10 @@
 // 0 denotes empty grid coordinate, non-0 is wall unit
 // x in map file denotes starting character position (last one to be parsed is used)
 // 1-8 denote wall texture
-Layout::Layout(std::string filename, Eigen::Vector2d& pos) {
+Layout::Layout(std::string filename, Vector2d& pos) {
     std::ostringstream err_msg;
     std::ifstream map_ifs(filename);
-    if (!map_file.is_open()) {
+    if (!map_ifs.is_open()) {
         err_msg << "Could not open file: " << filename << std::endl;
         throw std::runtime_error(err_msg.str());
     }
@@ -34,7 +34,7 @@ Layout::Layout(std::string filename, Eigen::Vector2d& pos) {
         uint32_t i;
         for (i = 0; i < line.size(); ++i) {
             // empty map grid unit
-            if (!valid_start_exists && c == '0') {
+            if (!valid_start_exists && line[i] == '0') {
                 pos(0) = rows - 1;
                 pos(1) = i;
                 valid_start_exists = true;

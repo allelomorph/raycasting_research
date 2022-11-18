@@ -291,7 +291,7 @@ static void determineTtys(std::string& exec_filename,
     //  - https://github.com/coreutils/gnulib/blob/master/lib/readutmp.h
     struct utmp *ut;
     // Note: man 3 getutent prescribes calling setutent first as a best practice,
-    //   but in testing it fails here with ENOENT, so we don't use safeCExecVoidRet
+    //   but in testing it fails here with ENOENT, so we don't use safeCExec
     // Open _PATH_UTMP (eg /var/run/utmp)
     setutent();
     while ((ut = getutent()) != nullptr) {
@@ -312,7 +312,7 @@ static void determineTtys(std::string& exec_filename,
         }
     }
     // close _PATH_UTMP
-    safeCExecVoidRet(endutent, "endutent");
+    safeCExec(endutent, "endutent");
 
     if (!valid_input_tty_found) {
         std::ostringstream error_msg;

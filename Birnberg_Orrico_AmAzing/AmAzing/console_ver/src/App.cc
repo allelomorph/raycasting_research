@@ -1,8 +1,10 @@
 #include "App.hh"
 #include "Matrix.hh"      // Matrix2d Vector2d
+#include "safeCExec.hh"
+#include "XtermCodes.hh"  // CursorUp
 
 #include <time.h>         // clock clock_t CLOCKS_PER_SEC
-#include <csignal>        // signal SIG* sig_atomic_t
+#include <csignal>        // sigaction SIG* sig_atomic_t
 #include <linux/input.h>  // KEY_*
 
 #include <iostream>
@@ -42,13 +44,17 @@ App::~App() {
         delete state;
 }
 
-// Needs to be global to be visible to signal
-// TBD: find a more idiomatic STL signal handling
-volatile std::sig_atomic_t stop = 0;
+// Need to be global to be visible to sigaction
+volatile std::sig_atomic_t sigint_sigterm_received = 0;
+volatile std::sig_atomic_t sigwinch_received = 0;
 
 // TBD: due to getEvents->getKeyEvents blocking on select(), program will hang when killed until some input events are read in that frame
-static void interrupt_handler(int /*signal*/) {
-    stop = 1;
+static void sigint_sigterm_handler(int /*signal*/) {
+    sigint_sigterm_received = 1;
+}
+
+static void sigwinch_handler(int /*signal*/) {
+    sigwinch_received = 1;
 }
 
 void App::initialize() {
@@ -68,28 +74,53 @@ void App::initialize() {
     fps_calc.initialize();
     state->key_handler.initialize(exec_filename);
 
-    signal(SIGINT, interrupt_handler);
-    signal(SIGTERM, interrupt_handler);
+    // get terminal window size in chars
+    safeCExec(ioctl, "ioctl", (int)-1,
+              0/*STDIN_FILENO*/, TIOCGWINSZ, &winsz);
+
+    struct sigaction sa;
+    sa.sa_handler = sigint_sigterm_handler;
+    safeCExec(sigaction, "sigaction", (int)-1,
+              SIGINT, &sa, nullptr);
+    safeCExec(sigaction, "sigaction", (int)-1,
+              SIGTERM, &sa, nullptr);
+    sa.sa_handler = sigwinch_handler;
+    safeCExec(sigaction, "sigaction", (int)-1,
+              SIGWINCH, &sa, nullptr);
+
+    // force scrollback of all terminal text before frame display
+    // TBD: is there a way to do this with CSIs instead of a dummy frame?
+    for (uint16_t row {0}; row < winsz.ws_row; ++row) {
+        std::cout << std::string(winsz.ws_col, ' ') << '\n';
+    }
+    std::cout <<
+        XtermCodes::CursorHome() << XtermCodes::EraseLinesBelow();
 }
 
 void App::run() {
     initialize();
 
-    while(!stop && !state->done) {
+    // TBD: better consolidate these two tests
+    while(!sigint_sigterm_received && !state->done) {
         fps_calc.calculate();
+
         getEvents();
         updateData(/*fps_calc.moving_avg_frame_time*/);
 
+        if (sigwinch_received) {
+            std::cout <<
+                XtermCodes::CursorHome() << XtermCodes::EraseLinesBelow();
+            safeCExec(ioctl, "ioctl", (int)-1,
+                      0/*STDIN_FILENO*/, TIOCGWINSZ, &winsz);
+            sigwinch_received = 0;
+        }
         printDebugHUD();
     }
 
     // erases last frame printed to terminal
-    // TBD: make function and/or coordinate with screen height macro for CSI_CURSOR_UP
-    constexpr uint32_t display_lines { 5 };
-    for (uint32_t i { 0 }; i < display_lines; ++i)
-        std::cout << std::string(100, ' ') << '\n';
-    // TBD: macro can't take variable name
-    std::cout << CSI_CURSOR_UP(5);
+    // TBD: make into function?
+    std::cout <<
+        XtermCodes::CursorHome() << XtermCodes::EraseLinesBelow();
 }
 
 void App::getEvents() {
@@ -182,10 +213,11 @@ void App::printDebugHUD() {
     std::cout << "\tpos: " << state->pos << " dir: " << state->dir <<
         " viewPlane: " << state->viewPlane << '\n';
     std::cout << "FPS: " << (1 / fps_calc.moving_avg_frame_time) << '\n';
+    std::cout << "Terminal window size: " << winsz.ws_row << " rows " << winsz.ws_col << " columns\n";
 
     for (const auto& pair : state->key_handler.key_states) {
         auto key { pair.second };
         std::cout /*<< std::setw(6)*/ << pair.second.repr << ": " << std::noboolalpha << key.isPressed() << ' ';
     }
-    std::cout << '\n' << CSI_CURSOR_UP(5);
+    std::cout << '\n' << XtermCodes::CursorUp(6);
 }

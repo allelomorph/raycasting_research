@@ -136,7 +136,7 @@ public:
      * @notes TBD: currently designed for its only use in AmAzing:
      *   Matrix<double, 2, 2> * Matrix<double, 2, 1>. Template could be
      *   expanded to take differing scalar types, or generalized to take
-     *   matrix trather than vector multipliers, but that requires a variable
+     *   matrix rather than vector multipliers, but that requires a variable
      *   return type, as the width of the product matrix has to match the
      *   larger operand width (heights must always match,) see:
      *   - https://cse.buffalo.edu/~erdem/cse331/support/matrix-vect/

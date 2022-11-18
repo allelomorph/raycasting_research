@@ -5,18 +5,15 @@
 #include "Matrix.hh"  // Vector2d Vector2i
 
 #include <time.h>     // clock_t
+#include <termios.h>  // winsize
 
 #include <csignal>    // sig_atomic_t
 
 #include <string>
 
-// console chars, not pixels
-// #define WINDOW_WIDTH 108
-// #define WINDOW_HEIGHT 64
 
-#define CSI_CURSOR_UP( x ) "\x1b[" #x "A"
-
-extern volatile std::sig_atomic_t stop;
+extern volatile std::sig_atomic_t sigint_sigterm_received;
+extern volatile std::sig_atomic_t sigwinch_received;
 
 class FpsCalculator {
 private:
@@ -44,6 +41,9 @@ private:
     std::string map_filename;
 
     FpsCalculator fps_calc;
+
+    // TBD: establish minimum viable display dimensions in chars (original was 1080 x 640px in SDL)
+    struct winsize winsz;
 
     void initialize();
     void getEvents();

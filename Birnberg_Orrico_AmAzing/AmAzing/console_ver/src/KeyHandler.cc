@@ -104,15 +104,23 @@ void KeyHandler::handleKeyEvent(const struct input_event& ev) {
 void KeyHandler::getKeyEvents() {
     // select() blocks until there is something to read in fd, but does not
     //   prevent other reads like a blocking read() would.
-    // TBD: currently without a time limit select will block the current frame
-    //   from completing, even if the process was signaled. Maybe setting a
-    //   time limit, and early return from here if time limit exceeded, will
-    //   help this? Per man 2 select, return is 0 on timeout, so maybe set a
-    //   timeout of the maximum expected frame duration, like .1 sec?
     std::ostringstream error_oss;
+/*
     safeCExec(select, "select", (int)-1,
               kbd_device_fd + 1, &rdfds,
               (fd_set*)nullptr, (fd_set*)nullptr, (timeval*)nullptr);
+*/
+    // timeout prevents shutdown hanging on frame with no input
+    struct timeval tv { 0, 100000 };  // .1 sec
+    FD_SET(kbd_device_fd, &rdfds);
+    // select could be interrupted by SIGKILL, TERM, INT, or WINCH and return failure
+    if (select(kbd_device_fd + 1, &rdfds, nullptr, nullptr, &tv) == -1) {
+        if (errno != EINTR)
+            throw std::runtime_error("unexpected select failure");
+        return;
+    }
+    if (!FD_ISSET(kbd_device_fd, &rdfds))  // block timed out
+        return;
     ssize_t rd { safeCExec(read, "read", (ssize_t)-1,
                            kbd_device_fd, ev, sizeof(ev)) };
     if (rd < (ssize_t)sizeof(struct input_event)) {
@@ -127,7 +135,8 @@ void KeyHandler::getKeyEvents() {
             continue;
         // TBD: is there a way to standardize handling of ctrl + key?
         if (ev[i].code == KEY_C && ev[i].value == VAL_PRESS) {
-            stop = (isPressed(KEY_LEFTCTRL) || isPressed(KEY_RIGHTCTRL));
+            // TBD: alter state->done instead?
+            sigint_sigterm_received = (isPressed(KEY_LEFTCTRL) || isPressed(KEY_RIGHTCTRL));
             continue;
         }
         auto ks_it { key_states.find(ev[i].code) };
@@ -350,7 +359,6 @@ void KeyHandler::initialize(std::string& exec_filename) {
 
     // fd_set used by select() in getKeyEvents
     FD_ZERO(&rdfds);
-    FD_SET(kbd_device_fd, &rdfds);
 
     determineTtys(exec_filename, input_tty_name, display_tty_name);
     std::cout << "Terminal focus for input: " << input_tty_name << "\n";

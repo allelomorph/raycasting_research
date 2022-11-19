@@ -2,29 +2,17 @@
 #define APP_HH
 
 #include "State.hh"
-#include "Matrix.hh"  // Vector2d Vector2i
+#include "FpsCalc.hh"
 
-#include <time.h>     // clock_t
-#include <termios.h>  // winsize
+#include <termios.h>         // winsize
 
-#include <csignal>    // sig_atomic_t
+#include <csignal>           // sig_atomic_t
 
 #include <string>
 
 
 extern volatile std::sig_atomic_t sigint_sigterm_received;
 extern volatile std::sig_atomic_t sigwinch_received;
-
-class FpsCalculator {
-private:
-    // TBD: udpate to C++ idiomatic time calculation?
-    clock_t prev_timepoint;
-    clock_t curr_timepoint;
-public:
-    double moving_avg_frame_time { 0.015 };
-    void initialize();
-    void calculate();
-};
 
 class App {
 public:
@@ -40,7 +28,8 @@ private:
     std::string exec_filename;
     std::string map_filename;
 
-    FpsCalculator fps_calc;
+    ProcessTimeFpsCalc pt_fps_calc;
+    RealTimeFpsCalc rt_fps_calc;
 
     // TBD: establish minimum viable display dimensions in chars (original was 1080 x 640px in SDL)
     struct winsize winsz;

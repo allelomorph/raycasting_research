@@ -1,37 +1,22 @@
 #include "App.hh"
-#include "Matrix.hh"      // Matrix2d Vector2d
-#include "safeCExec.hh"   // C_*
-#include "XtermCodes.hh"  // CursorUp
+#include "Matrix.hh"         // Matrix2d Vector2d
+#include "safeCExec.hh"      // C_*
+#include "XtermCodes.hh"     // CursorUp
 
-#include <time.h>         // clock clock_t CLOCKS_PER_SEC
-#include <csignal>        // sigaction SIG* sig_atomic_t
-#include <linux/input.h>  // KEY_*
+#include <time.h>            // clock clock_t CLOCKS_PER_SEC
+#include <csignal>           // sigaction SIG* sig_atomic_t
+#include <linux/input.h>     // KEY_*
 
 #include <iostream>
-#include <iomanip>        // setw
+#include <iomanip>           // setw
 #include <string>
 
-#include <sys/types.h>    // pid_t
-#include <unistd.h>       // getpid
+#include <sys/types.h>       // pid_t
+#include <unistd.h>          // getpid
 
-#include <cmath>          // sin cos
+#include <cmath>             // sin cos
 
-//#include <functional>  // ref see TBD in initialize
-
-
-void FpsCalculator::initialize() {
-    prev_timepoint = safeCExec(clock, "clock", C_RETURN_TEST(clock_t, (ret == -1)));
-}
-
-void FpsCalculator::calculate() {
-    double frame_duration;
-
-    curr_timepoint = safeCExec(clock, "clock", C_RETURN_TEST(clock_t, (ret == -1)));
-    frame_duration = ((double(curr_timepoint - prev_timepoint)) / CLOCKS_PER_SEC);
-    prev_timepoint = curr_timepoint;
-    moving_avg_frame_time = (moving_avg_frame_time * 19.0 / 20.0) +
-        (frame_duration / 20.0);
-}
+//#include <functional>        // ref see TBD in initialize
 
 
 App::App(const char* efn, const char* mfn) :
@@ -71,7 +56,8 @@ void App::initialize() {
     state->dir << 0, 1;
     state->viewPlane << 2.0/3, 0;
 
-    fps_calc.initialize();
+    pt_fps_calc.initialize();
+    rt_fps_calc.initialize();
     state->key_handler.initialize(exec_filename);
 
     // get terminal window size in chars
@@ -102,7 +88,8 @@ void App::run() {
 
     // TBD: better consolidate these two tests
     while(!sigint_sigterm_received && !state->done) {
-        fps_calc.calculate();
+        pt_fps_calc.calculate();
+        rt_fps_calc.calculate();
 
         getEvents();
         updateData(/*fps_calc.moving_avg_frame_time*/);
@@ -137,8 +124,8 @@ static Vector2d rotate2d(Vector2d vector, double rotSpeed) {
 
 void App::updateData() {
     // TBD: rationale for these calcs?
-    double moveSpeed { fps_calc.moving_avg_frame_time * 4 };
-    double rotSpeed  { fps_calc.moving_avg_frame_time * 2 };
+    double moveSpeed { pt_fps_calc.frame_duration_mvg_avg * 4 };
+    double rotSpeed  { pt_fps_calc.frame_duration_mvg_avg * 2 };
 
     // q or escape keys: quit
     if (state->key_handler.isPressed(KEY_Q) ||
@@ -212,12 +199,13 @@ void App::printDebugHUD() {
         " showMap: " << std::setw(5) << state->showMap << '\n';
     std::cout << "\tpos: " << state->pos << " dir: " << state->dir <<
         " viewPlane: " << state->viewPlane << '\n';
-    std::cout << "FPS: " << (1 / fps_calc.moving_avg_frame_time) << '\n';
-    std::cout << "Terminal window size: " << winsz.ws_row << " rows " << winsz.ws_col << " columns\n";
+    std::cout << "Terminal window size:\n\t" << winsz.ws_row << " rows " << winsz.ws_col << " columns\n";
+    std::cout << "Process Time FPS:\n\t" << (1 / pt_fps_calc.frame_duration_mvg_avg) << '\n';
+    std::cout << "Real Time FPS:\n\t" << (1 / rt_fps_calc.frame_duration_mvg_avg.count()) << '\n';
 
     for (const auto& pair : state->key_handler.key_states) {
         auto key { pair.second };
         std::cout /*<< std::setw(6)*/ << pair.second.repr << ": " << std::noboolalpha << key.isPressed() << ' ';
     }
-    std::cout << '\n' << XtermCodes::CursorUp(6);
+    std::cout << '\n' << XtermCodes::CursorUp(10);
 }

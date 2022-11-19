@@ -29,14 +29,14 @@
 
 template<typename FuncPtrType, typename ReturnType, typename ...ParamTypes>
 ReturnType safeSDLExec(FuncPtrType func, const std::string func_name,
-                       bool (*is_failure_return)(ReturnType),
+                       bool (*is_failure)(ReturnType),
                        ParamTypes ...params) {
     assert(func_name.find("SDL_") == 0 ||
            func_name.find("IMG_") == 0 ||
            func_name.find("Mix_") == 0 ||
            func_name.find("TTF_") == 0);
     ReturnType retval { func(params...) };
-    if (is_failure_return(retval)) {
+    if (is_failure(retval)) {
         std::ostringstream msg;
         msg << func_name << ": " << SDL_GetError();
         throw std::runtime_error(msg.str());

@@ -14,12 +14,12 @@ extern "C" {
 #include <cstring>    // strerror
 
 
-template<typename FuncPtrType, typename RetType, typename ...ParamTypes>
-RetType safeCExec(FuncPtrType func, std::string func_name,
-                  RetType failure_retval, ParamTypes ...params) {
+template<typename FuncPtrType, typename ReturnType, typename ...ParamTypes>
+ReturnType safeCExec(FuncPtrType func, std::string func_name,
+                     bool (*is_failure)(ReturnType, int), ParamTypes ...params) {
     errno = 0;
-    RetType retval { func(params...) };
-    if (retval == failure_retval) {
+    ReturnType retval { func(params...) };
+    if (is_failure(retval, errno)) {
         std::ostringstream msg;
         msg << func_name << ": ";
         if (errno == 0)
@@ -29,6 +29,20 @@ RetType safeCExec(FuncPtrType func, std::string func_name,
         throw std::runtime_error(msg.str());
     }
     return retval;
+}
+
+template<typename FuncPtrType, typename ...ParamTypes>
+void safeCExec(FuncPtrType func, std::string func_name,
+               bool (*is_failure)(int), ParamTypes ...params) {
+    errno = 0;
+    std::ostringstream msg;
+
+    func(params...);
+    if (errno != 0 && is_failure(errno)) {
+        msg << func_name << ": ";
+        msg << errnoname(errno) << " - " << std::strerror(errno);
+        throw std::runtime_error(msg.str());
+    }
 }
 
 template<typename FuncPtrType, typename ...ParamTypes>
@@ -44,6 +58,13 @@ void safeCExec(FuncPtrType func, std::string func_name,
         throw std::runtime_error(msg.str());
     }
 }
+
+#define C_RETURN_ERRNO_TEST(ret_type, test) \
+    static_cast<bool (*)(ret_type ret, int err)>([](ret_type ret, int err){ return test; })
+#define C_RETURN_TEST(ret_type, test) \
+    static_cast<bool (*)(ret_type ret, int /*err*/)>([](ret_type ret, int /*err*/){ return test; })
+#define C_ERRNO_TEST(test) \
+    static_cast<bool (*)(int err)>([](int err){ return test; })
 
 
 #endif  // SAFECEXEC_HH

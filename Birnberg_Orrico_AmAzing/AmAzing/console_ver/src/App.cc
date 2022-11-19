@@ -1,6 +1,6 @@
 #include "App.hh"
 #include "Matrix.hh"      // Matrix2d Vector2d
-#include "safeCExec.hh"
+#include "safeCExec.hh"   // C_*
 #include "XtermCodes.hh"  // CursorUp
 
 #include <time.h>         // clock clock_t CLOCKS_PER_SEC
@@ -20,13 +20,13 @@
 
 
 void FpsCalculator::initialize() {
-    prev_timepoint = clock();
+    prev_timepoint = safeCExec(clock, "clock", C_RETURN_TEST(clock_t, (ret == -1)));
 }
 
 void FpsCalculator::calculate() {
     double frame_duration;
 
-    curr_timepoint = clock();
+    curr_timepoint = safeCExec(clock, "clock", C_RETURN_TEST(clock_t, (ret == -1)));
     frame_duration = ((double(curr_timepoint - prev_timepoint)) / CLOCKS_PER_SEC);
     prev_timepoint = curr_timepoint;
     moving_avg_frame_time = (moving_avg_frame_time * 19.0 / 20.0) +
@@ -75,17 +75,17 @@ void App::initialize() {
     state->key_handler.initialize(exec_filename);
 
     // get terminal window size in chars
-    safeCExec(ioctl, "ioctl", (int)-1,
+    safeCExec(ioctl, "ioctl", C_RETURN_TEST(int, (ret == -1)),
               0/*STDIN_FILENO*/, TIOCGWINSZ, &winsz);
 
     struct sigaction sa;
     sa.sa_handler = sigint_sigterm_handler;
-    safeCExec(sigaction, "sigaction", (int)-1,
+    safeCExec(sigaction, "sigaction", C_RETURN_TEST(int, (ret == -1)),
               SIGINT, &sa, nullptr);
-    safeCExec(sigaction, "sigaction", (int)-1,
+    safeCExec(sigaction, "sigaction", C_RETURN_TEST(int, (ret == -1)),
               SIGTERM, &sa, nullptr);
     sa.sa_handler = sigwinch_handler;
-    safeCExec(sigaction, "sigaction", (int)-1,
+    safeCExec(sigaction, "sigaction", C_RETURN_TEST(int, (ret == -1)),
               SIGWINCH, &sa, nullptr);
 
     // force scrollback of all terminal text before frame display
@@ -110,7 +110,7 @@ void App::run() {
         if (sigwinch_received) {
             std::cout <<
                 XtermCodes::CursorHome() << XtermCodes::EraseLinesBelow();
-            safeCExec(ioctl, "ioctl", (int)-1,
+            safeCExec(ioctl, "ioctl", C_RETURN_TEST(int, (ret == -1)),
                       0/*STDIN_FILENO*/, TIOCGWINSZ, &winsz);
             sigwinch_received = 0;
         }

@@ -59,8 +59,10 @@ static std:: string generateUngrabMessage() {
 
 void KeyHandler::ungrabDevice() {
     if (kbd_device_fd != UNINITIALIZED_FD) {
-        safeCExec(ioctl, "ioctl", (int)-1, kbd_device_fd, EVIOCGRAB, (void*)0);
-        safeCExec(close, "close", (int)-1, kbd_device_fd);
+        safeCExec(ioctl, "ioctl", C_RETURN_TEST(int, (ret == -1)),
+                  kbd_device_fd, EVIOCGRAB, (void*)0);
+        safeCExec(close, "close", C_RETURN_TEST(int, (ret == -1)),
+                  kbd_device_fd);
         std::ofstream ofs;
         ofs.open(input_tty_name);
         if (ofs.is_open()) {
@@ -102,26 +104,20 @@ void KeyHandler::handleKeyEvent(const struct input_event& ev) {
 */
 
 void KeyHandler::getKeyEvents() {
+    std::ostringstream error_oss;
     // select() blocks until there is something to read in fd, but does not
     //   prevent other reads like a blocking read() would.
-    std::ostringstream error_oss;
-/*
-    safeCExec(select, "select", (int)-1,
-              kbd_device_fd + 1, &rdfds,
-              (fd_set*)nullptr, (fd_set*)nullptr, (timeval*)nullptr);
-*/
-    // timeout prevents shutdown hanging on frame with no input
+    // using timeout prevents shutdown hanging on frame with no keyboard input
     struct timeval tv { 0, 100000 };  // .1 sec
     FD_SET(kbd_device_fd, &rdfds);
-    // select could be interrupted by SIGKILL, TERM, INT, or WINCH and return failure
-    if (select(kbd_device_fd + 1, &rdfds, nullptr, nullptr, &tv) == -1) {
-        if (errno != EINTR)
-            throw std::runtime_error("unexpected select failure");
+    // select could be interrupted by a signal and return failure (likely cases
+    //   in this application are SIGTERM, SIGINT, or SIGWINCH)
+    safeCExec(select, "select", C_RETURN_ERRNO_TEST(int, (ret == -1 && err != EINTR)),
+              kbd_device_fd + 1, &rdfds, nullptr, nullptr, &tv);
+    // FD_ISSET not true if select failed or timed out
+    if (!FD_ISSET(kbd_device_fd, &rdfds))
         return;
-    }
-    if (!FD_ISSET(kbd_device_fd, &rdfds))  // block timed out
-        return;
-    ssize_t rd { safeCExec(read, "read", (ssize_t)-1,
+    ssize_t rd { safeCExec(read, "read", C_RETURN_TEST(ssize_t, (ret == -1)),
                            kbd_device_fd, ev, sizeof(ev)) };
     if (rd < (ssize_t)sizeof(struct input_event)) {
         error_oss << __FUNCTION__ << ": expected to read at least " <<
@@ -219,7 +215,7 @@ static std::string determineInputDevice(void) {
             // Generate score based on device name
             // TBD: passsing std::tolower causes problem with unresolved overload,
             //   but global ::tolower works
-            // Further, it looks like cctype or ctype.h has been included by another header
+            // TBD: also it looks like cctype or ctype.h has been included by another header
             std::transform(name.begin(), name.end(),
                            name.begin(), ::tolower);
             if (name.find("keyboard") != std::string::npos)
@@ -280,11 +276,11 @@ static void determineTtys(std::string& exec_filename,
                           std::string& input_tty_name, std::string& display_tty_name) {
     // Use of ttyname taken from coreutils tty, see:
     //  - https://github.com/coreutils/coreutils/blob/master/src/tty.c
-    std::string curr_tty_name {
-        safeCExec(ttyname, "ttyname", (char*)nullptr, STDIN_FILENO) };
+    std::string curr_tty_name { safeCExec(ttyname, "ttyname",
+                                          C_RETURN_TEST(char *, (ret == nullptr)),
+                                          STDIN_FILENO) };
     char *SSH_TTY { getenv("SSH_TTY") };
     display_tty_name = curr_tty_name;
-
     // Current tty is true tty with hardware access
     if (curr_tty_name.find("tty") != std::string::npos && SSH_TTY == nullptr) {
         input_tty_name = curr_tty_name;
@@ -301,8 +297,8 @@ static void determineTtys(std::string& exec_filename,
     struct utmp *ut;
     // Note: man 3 getutent prescribes calling setutent first as a best practice,
     //   but in testing it fails here with ENOENT, so we don't use safeCExec
-    // Open _PATH_UTMP (eg /var/run/utmp)
-    setutent();
+    // opens _PATH_UTMP (eg /var/run/utmp)
+    safeCExec(setutent, "setutent", C_ERRNO_TEST( (err != ENOENT) ));
     while ((ut = getutent()) != nullptr) {
         // USER_PROCESS: normal process with attached username that is not LOGIN
         if (ut->ut_type == USER_PROCESS) {
@@ -320,7 +316,7 @@ static void determineTtys(std::string& exec_filename,
             }
         }
     }
-    // close _PATH_UTMP
+    // closes _PATH_UTMP
     safeCExec(endutent, "endutent");
 
     if (!valid_input_tty_found) {
@@ -335,12 +331,14 @@ static void determineTtys(std::string& exec_filename,
 void KeyHandler::grabDevice(std::string& exec_filename) {
     std::ostringstream error_msg;
 
-    kbd_device_fd = safeCExec(open, "open", (int)-1,
+    kbd_device_fd = safeCExec(open, "open", C_RETURN_TEST(int, (ret == -1)),
                               kbd_device_path.c_str(), O_RDONLY);
     try {
-        safeCExec(ioctl, "ioctl", (int)-1, kbd_device_fd, EVIOCGRAB, (void*)1);
+        safeCExec(ioctl, "ioctl", C_RETURN_TEST(int, (ret == -1)),
+                  kbd_device_fd, EVIOCGRAB, (void*)1);
     } catch (std::runtime_error& re) {
-        safeCExec(ioctl, "ioctl", (int)-1, kbd_device_fd, EVIOCGRAB, (void*)0);
+        safeCExec(ioctl, "ioctl", C_RETURN_TEST(int, (ret == -1)),
+                  kbd_device_fd, EVIOCGRAB, (void*)0);
         throw re;
     }
     std::ofstream ofs;
@@ -357,7 +355,7 @@ void KeyHandler::initialize(std::string& exec_filename) {
 
     grabDevice(exec_filename);
 
-    // fd_set used by select() in getKeyEvents
+    // init fd_set used by select(2) in getKeyEvents
     FD_ZERO(&rdfds);
 
     determineTtys(exec_filename, input_tty_name, display_tty_name);

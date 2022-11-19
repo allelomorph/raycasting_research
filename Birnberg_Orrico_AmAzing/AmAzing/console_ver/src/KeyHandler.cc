@@ -114,8 +114,8 @@ void KeyHandler::getKeyEvents() {
     //   in this application are SIGTERM, SIGINT, or SIGWINCH)
     safeCExec(select, "select", C_RETURN_ERRNO_TEST(int, (ret == -1 && err != EINTR)),
               kbd_device_fd + 1, &rdfds, nullptr, nullptr, &tv);
-    // FD_ISSET not true if select failed or timed out
-    if (!FD_ISSET(kbd_device_fd, &rdfds))
+    // FD_ISSET not true if select timed out
+    if (errno == EINTR || !FD_ISSET(kbd_device_fd, &rdfds))
         return;
     ssize_t rd { safeCExec(read, "read", C_RETURN_TEST(ssize_t, (ret == -1)),
                            kbd_device_fd, ev, sizeof(ev)) };
@@ -254,7 +254,7 @@ static std::string determineInputDevice(void) {
     return device_paths[max_device_i];
 }
 
-static std:: string generateGrabMessage(std::string exec_filename) {
+static std::string generateGrabMessage(std::string exec_filename) {
     std::ostringstream msg;
     static constexpr uint16_t msg_width { 100 };
     static std::string msg_border ( msg_width, '*' );

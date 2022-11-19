@@ -23,7 +23,7 @@ enum class SysColor {
 // XtermCodes classes used to insert into stream as if called like an iomanip
 // TBD: can C++20's format help avoid need to cast to ints before streaming?
 
-class charFgColor {
+class CharFgColor {
 private:
     bool true_color;
     union {
@@ -33,17 +33,17 @@ private:
     uint8_t green;      // 3-byte truecolor
     uint8_t blue;       // 3-byte truecolor
 public:
-    charFgColor(SysColor c) :
+    CharFgColor(SysColor c) :
         true_color(false), color(static_cast<uint8_t>(c)) {}
-    charFgColor(uint8_t c) :
+    CharFgColor(uint8_t c) :
         true_color(false), color(c) {}
-    charFgColor(uint8_t r, uint8_t g, uint8_t b) :
+    CharFgColor(uint8_t r, uint8_t g, uint8_t b) :
         true_color(true), red(r), green(g), blue(b) {}
 
-    friend std::ostream& operator<<(std::ostream& os, const charFgColor& cfgc);
+    friend std::ostream& operator<<(std::ostream& os, const CharFgColor& cfgc);
 };
 
-class charBgColor {
+class CharBgColor {
 private:
     bool true_color;
     union {
@@ -53,20 +53,46 @@ private:
     uint8_t green;      // 3-byte truecolor
     uint8_t blue;       // 3-byte truecolor
 public:
-    charBgColor(SysColor c) :
+    CharBgColor(SysColor c) :
         true_color(false), color(static_cast<uint8_t>(c)) {}
-    charBgColor(uint8_t c) :
+    CharBgColor(uint8_t c) :
         true_color(false), color(c) {}
-    charBgColor(uint8_t r, uint8_t g, uint8_t b) :
+    CharBgColor(uint8_t r, uint8_t g, uint8_t b) :
         true_color(true), red(r), green(g), blue(b) {}
 
-    friend std::ostream& operator<<(std::ostream& os, const charBgColor& cbgc);
+    friend std::ostream& operator<<(std::ostream& os, const CharBgColor& cbgc);
 };
 
-class charDefaults {
+class CharDefaults {
 public:
-    friend std::ostream& operator<<(std::ostream& os, const charDefaults& /*cdflts*/);
+    friend std::ostream& operator<<(std::ostream& os, const CharDefaults& /*cdflts*/);
 };
+
+class CursorUp {
+private:
+    uint16_t rows;
+public:
+    CursorUp(uint16_t r) : rows(r) {}
+
+    friend std::ostream& operator<<(std::ostream& os, const CursorUp& cu);
+};
+
+class CursorHome {
+private:
+    uint16_t row;
+    uint16_t column;
+public:
+    CursorHome() : row(1), column(1) {}
+    CursorHome(uint16_t r, uint16_t c) : row(r), column(c) {}
+
+    friend std::ostream& operator<<(std::ostream& os, const CursorHome& ch);
+};
+
+class EraseLinesBelow {
+public:
+    friend std::ostream& operator<<(std::ostream& os, const EraseLinesBelow& /*elb*/);
+};
+
 
 }  // namespace XtermCodes
 

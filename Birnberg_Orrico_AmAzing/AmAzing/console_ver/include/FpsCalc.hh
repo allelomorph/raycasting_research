@@ -18,8 +18,8 @@ private:
     // divisor for moving average, smaller values make average adjust more quickly
     double alpha { 20.0 };
 public:
-    // arbitrary estimated start value of ~64 FPS (0.015625s per frame)
-    double frame_duration_mvg_avg { 0.015 };
+    // arbitrary start value of 100 RT FPS
+    double frame_duration_mvg_avg { 0.01 };
     void initialize();
     void calculate();
 };
@@ -32,8 +32,8 @@ private:
     // divisor for moving average, smaller values make average adjust more quickly
     double alpha { 20.0 };
 public:
-    // arbitrary estimated start value of ~64 FPS (0.015625s per frame)
-    std::chrono::duration<double> frame_duration_mvg_avg { 0.015 };
+    // arbitrary start value of 100 RT FPS
+    std::chrono::duration<double> frame_duration_mvg_avg { 0.01 };
     void initialize();
     void calculate();
 };

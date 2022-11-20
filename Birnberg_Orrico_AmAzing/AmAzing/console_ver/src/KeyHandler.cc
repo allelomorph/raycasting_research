@@ -108,13 +108,15 @@ void KeyHandler::getKeyEvents() {
     // select() blocks until there is something to read in fd, but does not
     //   prevent other reads like a blocking read() would.
     // using timeout prevents shutdown hanging on frame with no keyboard input
-    struct timeval tv { 0, 100000 };  // .1 sec
     FD_SET(kbd_device_fd, &rdfds);
+    // using copy of select_timeout per man 2 select: "On Linux, select()
+    //   modifies timeout to reflect the amount of time not slept"
+    struct timeval tv { select_timeout };
     // select could be interrupted by a signal and return failure (likely cases
     //   in this application are SIGTERM, SIGINT, or SIGWINCH)
     safeCExec(select, "select", C_RETURN_ERRNO_TEST(int, (ret == -1 && err != EINTR)),
               kbd_device_fd + 1, &rdfds, nullptr, nullptr, &tv);
-    // FD_ISSET not true if select timed out
+    // FD_ISSET false if select timed out
     if (errno == EINTR || !FD_ISSET(kbd_device_fd, &rdfds))
         return;
     ssize_t rd { safeCExec(read, "read", C_RETURN_TEST(ssize_t, (ret == -1)),

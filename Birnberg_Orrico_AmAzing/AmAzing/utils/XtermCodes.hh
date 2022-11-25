@@ -6,7 +6,6 @@
 #ifndef XTERMCODES_HH
 #define XTERMCODES_HH
 
-
 #include <cstdint>
 
 #include <iostream>
@@ -15,10 +14,15 @@
 namespace XtermCodes {
 
 // enumerates the 16 default xterm system colors
+// system color names from:
+//   - https://www.ditig.com/256-colors-cheat-sheet
+// note: in testing, 8-color terminals apparently use the first 8 for the second 8
 enum class SysColor {
-    Black, Red, Green, Yellow, Blue, Magenta, Cyan, White,
-    LightBlack, LightRed, LightGreen, LightYellow, LightBlue, LightMagenta, LightCyan, LightWhite
+    Black, Maroon, Green, Olive, Navy, Purple, Teal, Silver,
+    Grey, Red, Lime, Yellow, Blue, Fuschia, Aqua, White
 };
+
+uint8_t colorCodeFromRGB(uint8_t red, uint8_t green, uint8_t blue);
 
 // XtermCodes classes used to insert into stream as if called like an iomanip
 // TBD: can C++20's format help avoid need to cast to ints before streaming?
@@ -93,6 +97,15 @@ public:
     friend std::ostream& operator<<(std::ostream& os, const EraseLinesBelow& /*elb*/);
 };
 
+class HideCursor {
+public:
+    friend std::ostream& operator<<(std::ostream& os, const HideCursor& /*hc*/);
+};
+
+class ShowCursor {
+public:
+    friend std::ostream& operator<<(std::ostream& os, const ShowCursor& /*sc*/);
+};
 
 }  // namespace XtermCodes
 

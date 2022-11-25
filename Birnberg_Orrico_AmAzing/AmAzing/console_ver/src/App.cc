@@ -80,7 +80,8 @@ void App::initialize() {
         std::cout << std::string(winsz.ws_col, ' ') << '\n';
     }
     std::cout <<
-        XtermCodes::CursorHome() << XtermCodes::EraseLinesBelow();
+        XtermCodes::CursorHome() << XtermCodes::EraseLinesBelow() <<
+        XtermCodes::HideCursor();
 }
 
 void App::run() {
@@ -107,7 +108,8 @@ void App::run() {
     // erases last frame printed to terminal
     // TBD: make into function?
     std::cout <<
-        XtermCodes::CursorHome() << XtermCodes::EraseLinesBelow();
+        XtermCodes::CursorHome() << XtermCodes::EraseLinesBelow() <<
+        XtermCodes::ShowCursor();
 }
 
 void App::getEvents() {

@@ -60,6 +60,9 @@ void App::initialize() {
     state->player_dir << -1, 0;
     state->view_plane << 0, 2.0/3;
 
+    state->base_movement_rate = 5.0;
+    state->turn_rate = 0.6;           // 3.0
+
     pt_fps_calc.initialize();
     rt_fps_calc.initialize();
 
@@ -143,9 +146,9 @@ static Vector2d rotateVector2d(const Vector2d& vector, const double rot_speed) {
 }
 
 void App::updateData() {
-    // TBD: rationale for these calcs?
-    double move_speed { pt_fps_calc.frame_duration_mvg_avg * 4 };
-    double rot_speed  { pt_fps_calc.frame_duration_mvg_avg * 2 };
+    double move_speed { pt_fps_calc.frame_duration_mvg_avg * state->base_movement_rate };
+    double rot_speed  { pt_fps_calc.frame_duration_mvg_avg *
+                        state->base_movement_rate * state->turn_rate };
 
     // q or escape keys: quit
     if (state->key_handler.isPressed(KEY_Q) ||

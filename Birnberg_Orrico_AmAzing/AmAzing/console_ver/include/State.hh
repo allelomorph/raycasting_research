@@ -49,6 +49,11 @@ public:
     //   but should always remain perpendicular and of constant length.
     Vector2d view_plane;
 
+    // used to determine player movement speed, as pegged to frame rate
+    double base_movement_rate;
+    // expressed as percentage of base_movement_rate
+    double turn_rate;
+
     // TBD: rule of 5?
     ~State();
 

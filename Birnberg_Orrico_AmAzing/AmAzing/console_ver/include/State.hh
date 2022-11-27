@@ -6,35 +6,54 @@
 #include "Matrix.hh"  // Vector2d
 
 
+// TBD: is a singleton pattern truly necessary for State? All we need to assure
+//   is that each instance of App has only one instance of State; may be better
+//   to simply deactivate copy/move ops with `= delete`
 class State {
 private:
-    // TBD: why a pointer here? To delay initialization from State intstantiation until call of App::initialize()?
-    //    Likely to allow reinit of state, and static so that all instances of App share the same state...?
-    //    Pointer instead of reference due to reference members not able to be initialized without something to point to.
-    // self-referential, needs forward declaration
+    // singleton class pattern
     static State *instance;
 
 public:
-    // TBD: rule of 5?
-    ~State();
-
-    static State *getInstance();
-
     // operation flags
-    bool done  { false };
-    bool showFPS  { false };
-    bool showMap  { false };
+    // bool debug    { false };
+    bool done     { false };
+    bool show_fps { false };
+    bool show_map { false };
 
     // map
     Layout *layout { nullptr };
 
-    // input
+    // user input
     KeyHandler key_handler;
 
-    // raycasting
-    Vector2d pos;
-    Vector2d dir;
-    Vector2d viewPlane;
+    /*
+     * raycasting
+     */
+    // position vector (player x and y coordinates on map grid)
+    Vector2d player_pos;
+    // direction vector (represented as line segment on map grid from player
+    //   position to midpoint of view plane)
+    Vector2d player_dir;
+    // The view/camera plane is the "window" through which the player sees the
+    //   world, and in the map grid, is represented as a line segment that is
+    //   perpendicular to and bisected by the direction vector.
+    // Using vector operations, the camera plane could be said to run from
+    //   (pos + dir - view_plane) on the player's left, intersect with dir at
+    //   (pos + dir), and end at the player's right with (pos + dir + view_plane)
+    // The ratio of the lengths of the direction vector and the camera plane
+    //   determines the FOV angle, so unless the desire is to change the FOV,
+    //   they must change together proportionally. FOV can be calculated with
+    //   2 * atan(view_plane length/dir length).
+    // When the player rotates, the values of dir and plane will be changed,
+    //   but should always remain perpendicular and of constant length.
+    Vector2d view_plane;
+
+    // TBD: rule of 5?
+    ~State();
+
+    // singleton class pattern
+    static State *getInstance();
 };
 
 #endif  // STATE_HH

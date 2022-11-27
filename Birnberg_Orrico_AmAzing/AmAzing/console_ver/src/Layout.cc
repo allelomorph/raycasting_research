@@ -83,7 +83,8 @@ Layout::Layout(std::string map_filename, Vector2d& pos) {
     rows += 2;
 
     // set starting position
-    // TBD: why this modifier on `pos(0) = rows - 1; pos(1) = i;`?
+    //   (+1.0 to each dim to account for offset of added outer boundary wall
+    //     to N and W, and +0.5 to start in the center of designated grid square)
     pos(0) += 1.5;
     pos(1) += 1.5;
 

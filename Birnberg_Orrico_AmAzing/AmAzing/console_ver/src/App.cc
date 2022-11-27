@@ -6,6 +6,7 @@
 #include <time.h>            // clock clock_t CLOCKS_PER_SEC
 #include <csignal>           // sigaction SIG* sig_atomic_t
 #include <linux/input.h>     // KEY_*
+#include <termios.h>         // winsize
 
 #include <iostream>
 #include <iomanip>           // setw
@@ -15,8 +16,6 @@
 #include <unistd.h>          // getpid
 
 #include <cmath>             // sin cos
-
-//#include <functional>        // ref see TBD in initialize
 
 
 App::App(const char* efn, const char* mfn) :
@@ -43,26 +42,36 @@ static void sigwinch_handler(int /*signal*/) {
 }
 
 void App::initialize() {
-    // parse map file, also sets pos
+    // TBD: change to using constructor/destructor instead of new/delete, but
+    //   allowing for future ability to load new maps on the fly
+    // parse map file, also sets player_pos
     try {
-        // TBD: why std::ref to create a reference_wrapper here?
-        state->layout = new Layout(map_filename, /*std::ref(*/state->pos/*)*/);
+        state->layout = new Layout(map_filename, state->player_pos);
     } catch (std::runtime_error &re) {
         std::cerr << re.what() << std::endl;
         state->done = true;
         return;
     }
 
-    state->dir << 0, 1;
-    state->viewPlane << 2.0/3, 0;
+    // TBD: following Lode example over AmAzing, (x, y) order
+    // Here the direction vector is a bit longer than the camera plane, so the
+    //   FOV will be smaller than 90° (more precisely, the FOV is
+    //   2 * atan(0.66/1.0), or 66°.
+    state->player_dir << -1, 0;
+    state->view_plane << 0, 2.0/3;
 
     pt_fps_calc.initialize();
     rt_fps_calc.initialize();
+
     state->key_handler.initialize(exec_filename);
 
     // get terminal window size in chars
+    struct winsize winsz;
     safeCExec(ioctl, "ioctl", C_RETURN_TEST(int, (ret == -1)),
               0/*STDIN_FILENO*/, TIOCGWINSZ, &winsz);
+    tty_window_w = winsz.ws_col;
+    tty_window_h = winsz.ws_row;
+    screen_buffer.resize(tty_window_w * tty_window_h);
 
     struct sigaction sa;
     sa.sa_handler = sigint_sigterm_handler;
@@ -79,8 +88,7 @@ void App::initialize() {
     for (uint16_t row {0}; row < winsz.ws_row; ++row) {
         std::cout << std::string(winsz.ws_col, ' ') << '\n';
     }
-    std::cout <<
-        XtermCodes::CursorHome() << XtermCodes::EraseLinesBelow() <<
+    std::cout << XtermCodes::CursorHome() << XtermCodes::EraseLinesBelow() <<
         XtermCodes::HideCursor();
 }
 
@@ -96,10 +104,15 @@ void App::run() {
         updateData(/*fps_calc.moving_avg_frame_time*/);
 
         if (sigwinch_received) {
-            std::cout <<
-                XtermCodes::CursorHome() << XtermCodes::EraseLinesBelow();
+            // terminal window size changes require rehiding the cursor
+            std::cout << XtermCodes::CursorHome() << XtermCodes::EraseLinesBelow() <<
+                XtermCodes::HideCursor();
+            struct winsize winsz;
             safeCExec(ioctl, "ioctl", C_RETURN_TEST(int, (ret == -1)),
                       0/*STDIN_FILENO*/, TIOCGWINSZ, &winsz);
+            tty_window_w = winsz.ws_col;
+            tty_window_h = winsz.ws_row;
+            screen_buffer.resize(tty_window_w * tty_window_h);
             sigwinch_received = 0;
         }
         printDebugHUD();
@@ -116,18 +129,23 @@ void App::getEvents() {
     state->key_handler.getKeyEvents();
 }
 
-static Vector2d rotate2d(Vector2d vector, double rotSpeed) {
+// TBD: index order of initial player_dir and view_plane values changed to match
+//   Lode's example, which is the opposite of AmAzing. Will the order of Matrix
+//   members in rotateVector2d and mods in updateData need to change as well?
+
+// TBD: use Matrix constructor instead of operator<</,
+static Vector2d rotateVector2d(const Vector2d& vector, const double rot_speed) {
     Matrix2d rotate;
     rotate <<
-        std::cos(rotSpeed), -std::sin(rotSpeed),
-        std::sin(rotSpeed), std::cos(rotSpeed);
+        std::cos(rot_speed), -std::sin(rot_speed),
+        std::sin(rot_speed), std::cos(rot_speed);
     return (rotate * vector);
 }
 
 void App::updateData() {
     // TBD: rationale for these calcs?
-    double moveSpeed { pt_fps_calc.frame_duration_mvg_avg * 4 };
-    double rotSpeed  { pt_fps_calc.frame_duration_mvg_avg * 2 };
+    double move_speed { pt_fps_calc.frame_duration_mvg_avg * 4 };
+    double rot_speed  { pt_fps_calc.frame_duration_mvg_avg * 2 };
 
     // q or escape keys: quit
     if (state->key_handler.isPressed(KEY_Q) ||
@@ -138,70 +156,70 @@ void App::updateData() {
 
     // left arrow key: rotate left
     if (state->key_handler.isPressed(KEY_LEFT)) {
-        state->dir = rotate2d(state->dir, rotSpeed);
-        state->viewPlane = rotate2d(state->viewPlane, rotSpeed);
+        state->player_dir = rotateVector2d(state->player_dir, rot_speed);
+        state->view_plane = rotateVector2d(state->view_plane, rot_speed);
     }
 
     // right arrow key: roatate right
     if (state->key_handler.isPressed(KEY_RIGHT)) {
-        state->dir = rotate2d(state->dir, -rotSpeed);
-        state->viewPlane = rotate2d(state->viewPlane, -rotSpeed);
+        state->player_dir = rotateVector2d(state->player_dir, -rot_speed);
+        state->view_plane = rotateVector2d(state->view_plane, -rot_speed);
     }
 
     // up arrow key: move forward
     if (state->key_handler.isPressed(KEY_UP)) {
-        double tmp = state->pos(0);
-        if (!state->layout->map[int(state->pos(0) + state->dir(0) * moveSpeed)][int(state->pos(1))]) {
-            state->pos(0) += state->dir(0) * moveSpeed;
+        double tmp = state->player_pos(0);
+        if (!state->layout->map[int(state->player_pos(0) + state->player_dir(0) * move_speed)][int(state->player_pos(1))]) {
+            state->player_pos(0) += state->player_dir(0) * move_speed;
         }
-        if (!state->layout->map[int(tmp)][int(state->pos(1) + state->dir(1) * moveSpeed)]) {
-            state->pos(1) += state->dir(1) * moveSpeed;
+        if (!state->layout->map[int(tmp)][int(state->player_pos(1) + state->player_dir(1) * move_speed)]) {
+            state->player_pos(1) += state->player_dir(1) * move_speed;
         }
     }
 
     // down arrow key: move backward
     if (state->key_handler.isPressed(KEY_DOWN)) {
-        double tmp = state->pos(0);
-        if (!state->layout->map[int(state->pos(0) - state->dir(0) * moveSpeed)][int(state->pos(1))])
-            state->pos(0) -= state->dir(0) * moveSpeed;
-        if (!state->layout->map[int(tmp)][int(state->pos(1) - state->dir(1) * moveSpeed)])
-            state->pos(1) -= state->dir(1) * moveSpeed;
+        double tmp = state->player_pos(0);
+        if (!state->layout->map[int(state->player_pos(0) - state->player_dir(0) * move_speed)][int(state->player_pos(1))])
+            state->player_pos(0) -= state->player_dir(0) * move_speed;
+        if (!state->layout->map[int(tmp)][int(state->player_pos(1) - state->player_dir(1) * move_speed)])
+            state->player_pos(1) -= state->player_dir(1) * move_speed;
     }
 
     // a key: move left (strafe)
     if (state->key_handler.isPressed(KEY_A)) {
-        double tmp = state->pos(0);
-        if (!state->layout->map[int(state->pos(0) - state->dir(1) * moveSpeed)][int(state->pos(1))])
-            state->pos(0) -= state->dir(1) * moveSpeed;
-        if (!state->layout->map[int(tmp)][int(state->pos(1) + state->dir(0) * moveSpeed)])
-            state->pos(1) += state->dir(0) * moveSpeed;
+        double tmp = state->player_pos(0);
+        if (!state->layout->map[int(state->player_pos(0) - state->player_dir(1) * move_speed)][int(state->player_pos(1))])
+            state->player_pos(0) -= state->player_dir(1) * move_speed;
+        if (!state->layout->map[int(tmp)][int(state->player_pos(1) + state->player_dir(0) * move_speed)])
+            state->player_pos(1) += state->player_dir(0) * move_speed;
     }
 
     // d key: move right (strafe)
     if (state->key_handler.isPressed(KEY_D)) {
-        double tmp = state->pos(0);
-        if (!state->layout->map[int(state->pos(0) + state->dir(1) * moveSpeed)][int(state->pos(1))])
-            state->pos(0) += state->dir(1) * moveSpeed;
-        if (!state->layout->map[int(tmp)][int(state->pos(1) - state->dir(0) * moveSpeed)])
-            state->pos(1) -= state->dir(0) * moveSpeed;
+        double tmp = state->player_pos(0);
+        if (!state->layout->map[int(state->player_pos(0) + state->player_dir(1) * move_speed)][int(state->player_pos(1))])
+            state->player_pos(0) += state->player_dir(1) * move_speed;
+        if (!state->layout->map[int(tmp)][int(state->player_pos(1) - state->player_dir(0) * move_speed)])
+            state->player_pos(1) -= state->player_dir(0) * move_speed;
     }
 
     // f key: toggle FPS
-    state->showFPS = state->key_handler.isPressed(KEY_F);
+    state->show_fps = state->key_handler.isPressed(KEY_F);
 
     // m key: toggle map overlay
-    state->showMap = state->key_handler.isPressed(KEY_M);
+    state->show_map = state->key_handler.isPressed(KEY_M);
 }
 
 
 void App::printDebugHUD() {
     std::cout << std::boolalpha << "State:\n";
     std::cout << "\tflags: done: " << std::setw(5) << state->done <<
-        " showFPS: " << std::setw(5) << state->showFPS <<
-        " showMap: " << std::setw(5) << state->showMap << '\n';
-    std::cout << "\tpos: " << state->pos << " dir: " << state->dir <<
-        " viewPlane: " << state->viewPlane << '\n';
-    std::cout << "Terminal window size:\n\t" << winsz.ws_row << " rows " << winsz.ws_col << " columns\n";
+        " show_fps: " << std::setw(5) << state->show_fps <<
+        " show_map: " << std::setw(5) << state->show_map << '\n';
+    std::cout << "\tplayer_pos: " << state->player_pos << " player_dir: " << state->player_dir <<
+        " view_plane: " << state->view_plane << '\n';
+    std::cout << "Terminal window size:\n\t" << tty_window_h << " rows " << tty_window_w << " columns\n";
     std::cout << "Process Time FPS:\n\t" << (1 / pt_fps_calc.frame_duration_mvg_avg) << '\n';
     std::cout << "Real Time FPS:\n\t" << (1 / rt_fps_calc.frame_duration_mvg_avg.count()) << '\n';
 

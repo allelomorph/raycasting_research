@@ -16,13 +16,14 @@ private:
 
 public:
     // operation flags
-    // bool debug    { false };
-    bool done     { false };
-    bool show_fps { false };
-    bool show_map { false };
+    bool done       { false };
+    bool show_map   { false };
+    bool show_fps   { false };
+    // TBD: debug on by default during development
+    bool debug_mode { true };
 
     // map
-    Layout *layout { nullptr };
+    Layout* layout  { nullptr };
 
     // user input
     KeyHandler key_handler;

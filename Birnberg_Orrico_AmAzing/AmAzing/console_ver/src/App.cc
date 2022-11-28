@@ -8,14 +8,16 @@
 #include <linux/input.h>     // KEY_*
 #include <termios.h>         // winsize
 
-#include <iostream>
-#include <iomanip>           // setw
-#include <string>
-
 #include <sys/types.h>       // pid_t
 #include <unistd.h>          // getpid
 
 #include <cmath>             // sin cos
+#include <cstdio>            // sprintf
+#include <cstring>           // strlen memset
+
+#include <iostream>
+#include <iomanip>           // setw
+#include <string>
 
 
 App::App(const char* efn, const char* mfn) :
@@ -69,12 +71,14 @@ void App::initialize() {
     state->key_handler.initialize(exec_filename);
 
     // get terminal window size in chars
+    // TBD: add note about finding this ioctl in tput or stty source
     struct winsize winsz;
     safeCExec(ioctl, "ioctl", C_RETURN_TEST(int, (ret == -1)),
               0/*STDIN_FILENO*/, TIOCGWINSZ, &winsz);
-    tty_window_w = winsz.ws_col;
-    tty_window_h = winsz.ws_row;
-    screen_buffer.resize(tty_window_w * tty_window_h);
+    // TBD: will need to redraw frame if HUD or map drawing reuses chars
+    // TBD: shade only for testing map and hud
+    screen_buffer.resizeToDims(winsz.ws_col, winsz.ws_row);
+
 
     struct sigaction sa;
     sa.sa_handler = sigint_sigterm_handler;
@@ -88,8 +92,9 @@ void App::initialize() {
 
     // force scrollback of all terminal text before frame display
     // TBD: is there a way to do this with CSIs instead of a dummy frame?
-    for (uint16_t row {0}; row < winsz.ws_row; ++row) {
-        std::cout << std::string(winsz.ws_col, ' ') << '\n';
+    // TBD: could just be same as drawScreen on empty screen_buffer
+    for (uint16_t y {0}; y < screen_buffer.h; ++y) {
+        std::cout << std::string(screen_buffer.w, ' ') << '\n';
     }
     std::cout << XtermCodes::CursorHome() << XtermCodes::EraseLinesBelow() <<
         XtermCodes::HideCursor();
@@ -113,12 +118,22 @@ void App::run() {
             struct winsize winsz;
             safeCExec(ioctl, "ioctl", C_RETURN_TEST(int, (ret == -1)),
                       0/*STDIN_FILENO*/, TIOCGWINSZ, &winsz);
-            tty_window_w = winsz.ws_col;
-            tty_window_h = winsz.ws_row;
-            screen_buffer.resize(tty_window_w * tty_window_h);
+            // TBD: shade only for testing map and hud
+            screen_buffer.resizeToDims(winsz.ws_col, winsz.ws_row);
+            // TBD: will need to redraw frame if HUD or map drawing reuses chars
             sigwinch_received = 0;
         }
-        printDebugHUD();
+
+        // printDebugHUD();
+        renderView();
+        // renderMap();
+        renderHUD();
+
+        // TBD: debug errors on terminal window size changes
+        if (sigwinch_received)
+            continue;
+
+        drawScreen();
     }
 
     // erases last frame printed to terminal
@@ -207,14 +222,141 @@ void App::updateData() {
             state->player_pos(1) -= state->player_dir(0) * move_speed;
     }
 
-    // f key: toggle FPS
+    // f key: toggle FPS overlay
     state->show_fps = state->key_handler.isPressed(KEY_F);
 
     // m key: toggle map overlay
     state->show_map = state->key_handler.isPressed(KEY_M);
 }
 
+void App::renderView() {
+    // TBD: dummy fill of buffer while testing renderMap and renderHUD
+    static uint16_t chase_x { 2 };
+    if (chase_x >= screen_buffer.w)
+        chase_x = 2;
+    for (auto& c : screen_buffer)
+        c = ' ';
+    static constexpr char row_labels[] { "0123456789ABCDEFGHIKLMNOPQRSTUVWXYZ"
+            "abcdefghijklmnopqrstuvwxyz" };
+    for (uint16_t y {0}; y < screen_buffer.h && !sigwinch_received; ++y) {
+        screen_buffer.charAtCoords(0, y) = row_labels[y];
+        screen_buffer.charAtCoords(1, y) = ' ';
+        screen_buffer.charAtCoords(chase_x, y) = '|';
+    }
+    ++chase_x;
+}
 
+void App::renderMap() {
+}
+
+// TBD: not yet ready to use C++20 std::format, so reverting to C-like printf
+//   syntax for constant decimal precsion
+void App::renderHUD() {
+    //    PTFPS: 4---.2-f  RTFPS: 4---.2-f
+    //
+    //     done: 0 show_fps: 0 show_map: 0
+    //    player_pos: {3--.3--f, 3--.3--f}
+    //    player_dir: {3--.3--f, 3--.3--f}
+    //    view_plane: {3--.3--f, 3--.3--f}
+    //             window size: 67 h 237 w
+    //                    user input keys:
+    //      down: 0 right: 0 up: 0 left: 0
+    //                           a: 0 d: 0
+    //                      p: 0 m: 0 f: 0
+    // <Rctrl>: 0 <Lctrl>: 0 c: 0 <esc>: 0
+    //
+
+    // using sprintf directly on screen_buffer would overwrite null byte after each string
+    char hud_line[50] { '\0' };
+    auto hud_line_sz { std::strlen(hud_line) };
+    uint16_t replace_x;
+    if (state->show_fps || state->debug_mode) {
+        // dddd.dd format with no negative values
+        std::sprintf(hud_line, " PTFPS: %7.2f  RTFPS: %7.2f",
+                     (1 / pt_fps_calc.frame_duration_mvg_avg),
+                     (1 / rt_fps_calc.frame_duration_mvg_avg.count()) );
+        hud_line_sz = std::strlen(hud_line);
+        // right justified on first line of screen
+        replace_x = screen_buffer.w - hud_line_sz;
+        screen_buffer.replaceAtCoords(replace_x, 0,
+                                      hud_line_sz, hud_line);
+        // blank bottom border line of same length
+        std::memset(hud_line, ' ', hud_line_sz);
+        hud_line[hud_line_sz] = '\0';
+        screen_buffer.replaceAtCoords(replace_x, 1,
+                                      hud_line_sz, hud_line);
+    }
+
+    if (state->debug_mode && screen_buffer.h >= 13) {
+        std::sprintf(hud_line, "     done: %i show_fps: %i show_map: %i",
+                     state->done, state->show_fps, state->show_map);
+        hud_line_sz = std::strlen(hud_line);
+        // also right justified (all lines should be left padded to equal length)
+        replace_x = screen_buffer.w - hud_line_sz;
+        // -ddd.ddd format
+        screen_buffer.replaceAtCoords(replace_x, 2,
+                                      hud_line_sz, hud_line);
+        std::sprintf(hud_line, "    player_pos: {%8.3f, %8.3f}",
+                     state->player_pos(0), state->player_pos(1));
+        screen_buffer.replaceAtCoords(replace_x, 3,
+                                      hud_line_sz, hud_line);
+        std::sprintf(hud_line, "    player_dir: {%8.3f, %8.3f}",
+                     state->player_dir(0), state->player_dir(1));
+        screen_buffer.replaceAtCoords(replace_x, 4,
+                                      hud_line_sz, hud_line);
+        std::sprintf(hud_line, "    view_plane: {%8.3f, %8.3f}",
+                     state->view_plane(0), state->view_plane(1));
+        screen_buffer.replaceAtCoords(replace_x, 5,
+                                      hud_line_sz, hud_line);
+        std::sprintf(hud_line, "           window size: %3u h %4u w",
+                     screen_buffer.h, screen_buffer.w);
+        screen_buffer.replaceAtCoords(replace_x, 6,
+                                      hud_line_sz, hud_line);
+
+        auto& key_handler { state->key_handler };
+        std::sprintf(hud_line, "                    user input keys:");
+        screen_buffer.replaceAtCoords(replace_x, 7,
+                                      hud_line_sz, hud_line);
+        std::sprintf(hud_line, "      down: %i right: %i up: %i left: %i",
+                     key_handler.isPressed(KEY_DOWN), key_handler.isPressed(KEY_RIGHT),
+                     key_handler.isPressed(KEY_UP), key_handler.isPressed(KEY_LEFT));
+        screen_buffer.replaceAtCoords(replace_x, 8,
+                                      hud_line_sz, hud_line);
+        std::sprintf(hud_line, "                           a: %i d: %i",
+                     key_handler.isPressed(KEY_A), key_handler.isPressed(KEY_D));
+        screen_buffer.replaceAtCoords(replace_x, 9,
+                                      hud_line_sz, hud_line);
+        std::sprintf(hud_line, "                      p: %i m: %i f: %i",
+                     key_handler.isPressed(KEY_P), key_handler.isPressed(KEY_M),
+                     key_handler.isPressed(KEY_F));
+        screen_buffer.replaceAtCoords(replace_x, 10,
+                                      hud_line_sz, hud_line);
+        std::sprintf(hud_line, " <Lctrl>: %i <Rctrl>: %i c: %i <esc>: %i",
+                     key_handler.isPressed(KEY_LEFTCTRL),
+                     key_handler.isPressed(KEY_RIGHTCTRL),
+                     key_handler.isPressed(KEY_C), key_handler.isPressed(KEY_ESC));
+        screen_buffer.replaceAtCoords(replace_x, 11,
+                                      hud_line_sz, hud_line);
+        // final blank border line
+        std::memset(hud_line, ' ', hud_line_sz);
+        hud_line[hud_line_sz] = '\0';
+        screen_buffer.replaceAtCoords(replace_x, 12,
+                                      hud_line_sz, hud_line);
+    }
+}
+
+
+// TBD: debug first line remaining after close
+void App::drawScreen() {
+    for (uint16_t y { 0 }; y < screen_buffer.h; ++y) {
+        std::cout << screen_buffer.row(y);
+        if (y != screen_buffer.h - 1)
+            std::cout << '\n';
+    }
+    std::cout << XtermCodes::CursorHome()/*XtermCodes::CursorUp(screen_buffer.h - 1)*/;
+}
+
+/*
 void App::printDebugHUD() {
     std::cout << std::boolalpha << "State:\n";
     std::cout << "\tflags: done: " << std::setw(5) << state->done <<
@@ -228,7 +370,8 @@ void App::printDebugHUD() {
 
     for (const auto& pair : state->key_handler.key_states) {
         auto key { pair.second };
-        std::cout /*<< std::setw(6)*/ << pair.second.repr << ": " << std::noboolalpha << key.isPressed() << ' ';
+        std::cout *<< std::setw(6)* << pair.second.repr << ": " << std::noboolalpha << key.isPressed() << ' ';
     }
     std::cout << '\n' << XtermCodes::CursorUp(10);
 }
+*/

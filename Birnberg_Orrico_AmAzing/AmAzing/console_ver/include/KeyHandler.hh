@@ -24,7 +24,9 @@ private:
     //   until the keyboard device file represented by kbd_device_fd fills with
     //   input_events to read. This means that the timeout for select
     //   effectively creates a real time FPS cap.
-    struct timeval select_timeout { 0, 10000 };  // .01 sec / 100 RT FPS cap
+    // struct timeval select_timeout { 0, 10000 };  // .01 sec / 100 RT FPS cap
+    // TBD: remove debug 20 RTFPS cap
+    struct timeval select_timeout { 0, 50000 };  // .05 sec / 20 RT FPS cap
     struct input_event ev[32];                   // structs read from kbd_device_fd
 
     void ungrabDevice();

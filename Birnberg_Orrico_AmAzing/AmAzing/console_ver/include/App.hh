@@ -39,25 +39,25 @@ public:
         resize(w * h, c);
     }
 /*
-    char* ptrToCoords(const uint16_t x, const uint16_t y) {
-        assert(x < w && y < h);
-        return data() + ((y * w) + x);
+    char* ptrToCoords(const uint16_t col, const uint16_t row) {
+        assert(col < w && row < h);
+        return data() + ((row * w) + col);
     }
 */
-    char& charAtCoords(const uint16_t x, const uint16_t y) {
-        assert(x < w && y < h);
-        return (*this)[(y * w) + x];
+    char& charAtCoords(const uint16_t col, const uint16_t row) {
+        assert(col < w && row < h);
+        return (*this)[(row * w) + col];
     }
 
-    void replaceAtCoords(const uint16_t x, const uint16_t y,
+    void replaceAtCoords(const uint16_t col, const uint16_t row,
                          const uint16_t len, const char* s) {
-        assert(x < w && y < h);
-        replace((y * w) + x, len, s);
+        assert(col < w && row < h);
+        replace((row * w) + col, len, s);
     }
 
-    std::string row(const uint16_t y) {
-        assert(y < h);
-        return substr(y * w, w);
+    std::string col(const uint16_t row) {
+        assert(row < h);
+        return substr(row * w, w);
     }
 };
 
@@ -98,8 +98,6 @@ private:
     void renderHUD();
 
     void drawScreen();
-
-    //void printDebugHUD();
 };
 
 #endif  // APP_HH

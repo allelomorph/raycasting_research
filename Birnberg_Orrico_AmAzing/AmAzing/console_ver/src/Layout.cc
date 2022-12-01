@@ -8,6 +8,12 @@
 
 
 // parsing map file into map in memory
+// Map 2d array representation will have row order inverted from map file order.
+//   This allows consistency across the human-readable maze map file, indexed
+//   access to the map array, and vector calculations in the raycasting engine:
+//   - map file: north is up, +y is up
+//   - map array with [i][j] ([y][x]): +i(+y) is up
+//   - vector values: +y is up
 Layout::Layout(std::string map_filename, Vector2d& pos) {
     std::ifstream map_file(map_filename);
     std::ostringstream err_msg;
@@ -19,7 +25,7 @@ Layout::Layout(std::string map_filename, Vector2d& pos) {
     bool viable_start_exists = false;
     bool chosen_start_exists = false;
     rows = 0;
-    columns = 0;
+    cols = 0;
     std::vector<int> row;
     std::cout << "parsing map file:\n";
     // empty lines end map parsing
@@ -35,16 +41,16 @@ Layout::Layout(std::string map_filename, Vector2d& pos) {
                 }
                 chosen_start_exists = true;
                 viable_start_exists = true;
-                pos(0) = rows - 1;
-                pos(1) = i;
+                pos(0) = i;         // x
+                pos(1) = rows - 1;  // y
                 row.emplace_back(0);
             } else if (std::isdigit(line[i])) {
                 // default start is first empty map tile found
                 //   (most northern, then eastern)
                 if (!viable_start_exists && line[i] == '0') {
                     viable_start_exists = true;
-                    pos(0) = rows - 1;
-                    pos(1) = i;
+                    pos(0) = i;         // x
+                    pos(1) = rows - 1;  // y
                 }
                 // TBD: C++ idiomatic conversion of digit char?
                 row.emplace_back(line[i] - '0');
@@ -58,8 +64,9 @@ Layout::Layout(std::string map_filename, Vector2d& pos) {
             }
         }
         // columns set to max width of variable width maps
-        columns = std::max((uint32_t)line.size(), columns);
-        map.push_back(row);
+        cols = std::max(static_cast<uint16_t>(line.size()), cols);
+        // insert at start of map array to invert row order from map file
+        map.emplace(map.begin(), row);
         row.clear();
     }
     map_file.close();
@@ -70,27 +77,27 @@ Layout::Layout(std::string map_filename, Vector2d& pos) {
     }
     for (auto & row: map) {
         // pad out non-rectangular eastern maze edges on map
-        if (row.size() < columns)
-            row.resize(columns, 1);
+        if (row.size() < cols)
+            row.resize(cols, 1);
         // add outer E and W walls (even if already bounded)
         row.insert(row.begin(), 1);
         row.push_back(1);
     }
-    columns += 2;
-    // add outer N and S walls (even if already bounded)
-    map.insert(map.begin(), std::vector<int>(columns, 1));
-    map.push_back(std::vector<int>(columns, 1));
+    cols += 2;
+    // add outer S and N walls (even if already bounded)
+    map.insert(map.begin(), std::vector<int>(cols, 1));
+    map.push_back(std::vector<int>(cols, 1));
     rows += 2;
 
     // set starting position
-    //   (+1.0 to each dim to account for offset of added outer boundary wall
+    //   (+1.0 to each dim to account for offset of added outer boundary walls
     //     to N and W, and +0.5 to start in the center of designated grid square)
     pos(0) += 1.5;
     pos(1) += 1.5;
 
     std::cout << "parsed map:\n";
-    for (const auto &row : map) {
-        for (const auto &tile : row)
+    for (auto r_it { map.rbegin() }; r_it != map.rend(); ++r_it) {
+        for (const auto &tile : *r_it)
             std::cout << tile;
         std::cout << "\n";
     }

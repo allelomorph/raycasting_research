@@ -17,13 +17,22 @@ private:
 public:
     // operation flags
     bool done       { false };
-    bool show_map   { false };
-    bool show_fps   { false };
-    // TBD: debug on by default during development
-    bool debug_mode { true };
+
+    /*
+     * game settings
+     */
+    // TBD: on by default during testing
+    bool   show_map       { true };
+    // length of map display square side as percentage of sceen height
+    double map_proportion { 1.0/3 };
+    uint16_t map_h;
+    uint16_t map_w;
+    bool   show_fps       { false };
+    // TBD: on by default during development
+    bool debug_mode       { true };
 
     // map
-    Layout* layout  { nullptr };
+    Layout* layout { nullptr };
 
     // user input
     KeyHandler key_handler;

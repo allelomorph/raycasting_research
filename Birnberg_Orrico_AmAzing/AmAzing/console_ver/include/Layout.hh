@@ -3,6 +3,8 @@
 
 #include "Matrix.hh"  // Vector2d
 
+#include <cstdint>    // uint16_t
+
 #include <vector>
 #include <string>
 
@@ -10,10 +12,14 @@
 struct Layout {
     std::vector<std::vector<int>> map;
 
-    uint32_t columns;
-    uint32_t rows;
+    uint16_t cols;  // w
+    uint16_t rows;  // h
 
     Layout(std::string filename, Vector2d& pos);
+
+    inline bool coordsInsideWall(uint16_t x, uint16_t y) {
+        return (map[y][x] != 0);
+    }
 };
 
 #endif  // LAYOUT_HH

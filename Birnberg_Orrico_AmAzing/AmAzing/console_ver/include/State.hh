@@ -23,13 +23,15 @@ public:
      */
     // TBD: on by default during testing
     bool   show_map       { true };
-    // length of map display square side as percentage of sceen height
+    // map HUD hieght : screen height
     double map_proportion { 1.0/3 };
     uint16_t map_h;
     uint16_t map_w;
     bool   show_fps       { false };
     // TBD: on by default during development
     bool debug_mode       { true };
+    // true == use real ray distance to wall rather than perpendicular camera plane distance
+    bool fisheye          { false };
 
     // map
     Layout* layout { nullptr };

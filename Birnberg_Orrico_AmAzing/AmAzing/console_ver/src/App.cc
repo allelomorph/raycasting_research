@@ -134,7 +134,6 @@ void App::run() {
             sigwinch_received = 0;
         }
 
-        // printDebugHUD();
         renderView();
         renderMap();
         renderHUD();
@@ -157,9 +156,6 @@ void App::getEvents() {
     state->key_handler.getKeyEvents();
 }
 
-// TBD: index order of initial player_dir and view_plane values changed to match
-//   Lode's example, which is the opposite of AmAzing. Will the order of Matrix
-//   members in rotateVector2d and mods in updateData need to change as well?
 // TBD: make member function in Matrix.hh?
 // rotate Vector counterclockwise around origin
 static Vector2d rotateVector2d(const Vector2d& vec, const double radians) {
@@ -255,8 +251,161 @@ void App::updateData() {
     state->show_map = state->key_handler.isPressed(KEY_M);
 }
 
-void App::renderView() {
-    // TBD: dummy fill of buffer while testing renderMap and renderHUD
+enum class WallOrientation { EW, NS };
+
+struct FovRay {
+    Vector2d        dir;              // ray direction
+    double          wall_dist;        // distance to first wall collision
+    WallOrientation type_wall_hit;    // NS or EW alignment of wall hit
+};
+
+/*
+ * calculate ray position and direction
+ */
+static FovRay castRay(const uint16_t screen_x, const uint16_t screen_w,
+                      const Vector2d& player_pos, /*const*/ Vector2d& player_dir,
+                      /*const*/ Vector2d& view_plane, /*const*/ Layout* layout) {
+
+    // TBD: move camera_x calc outside function, to renderView loop?
+    // x coordinate in the camera plane represented by the current
+    //   screen x coordinate, calculated so that the left edge of the
+    //   camera plane is -1.0, center 0.0, and right edge is 1.0
+    double camera_x { 2 * screen_x / double(screen_w) - 1 };
+
+    FovRay ray;
+
+    // ray origin is player_pos
+    // multiply camera_plane vector by scalar x, then add to direction vector
+    //   to get ray direction
+    // TBD: const palyer_dir or view_plane as this discards qualifiers
+    ray.dir = player_dir + (view_plane * camera_x);
+
+    // current map grid coordinates of ray
+    uint16_t map_x ( player_pos(0) );
+    uint16_t map_y ( player_pos(1) );
+
+    // Initially the distances from the ray origin (player position) to its
+    //   first intersections with a map unit grid vertical and horizonal,
+    //   respectively. These map grid lines, or integer values of x and y,
+    //   serve to represent wall boundaries when they border a grid square
+    //   designated as a wall.
+    double dist_next_unit_x;
+    double dist_next_unit_y;
+
+    // distances the ray has to travel to go from one unit grid vertical
+    //   to the next, or one horizontal to the next, respectively
+    // IEEE 754 floating point values in C++ protect against division by 0
+    double dist_per_unit_x { std::abs(1 / ray.dir(0)) };
+    double dist_per_unit_y { std::abs(1 / ray.dir(1)) };
+
+    // DDA algorithm will always jump exactly one map grid square each
+    //   loop, either in the x or y. These vars record those increments,
+    //   either -1 or +1
+    int8_t map_step_x;
+    int8_t map_step_y;
+
+    // setup map grid step and initial ray distance to next grid unit values
+    if (ray.dir(0) < 0) {
+        map_step_x = -1;
+        dist_next_unit_x = (player_pos(0) - map_x) * dist_per_unit_x;
+    } else {
+        map_step_x = 1;
+        dist_next_unit_x = (map_x + 1.0 - player_pos(0)) * dist_per_unit_x;
+    }
+    if (ray.dir(1) < 0) {
+        map_step_y = -1;
+        dist_next_unit_y = (player_pos(1) - map_y) * dist_per_unit_y;
+    } else {
+        map_step_y = 1;
+        dist_next_unit_y = (map_y + 1.0 - player_pos(1)) * dist_per_unit_y;
+    }
+
+    // perform DDA algo, or the incremental casting of the ray
+    // moves to a new map unit square every loop, as directed by map_step values
+    // TBD: does orientation need to be set every loop?
+    // TBD: const layout as this discards qualifiers
+    while (!layout->coordsInsideWall(map_x, map_y)) {
+        if (dist_next_unit_x < dist_next_unit_y) {
+            dist_next_unit_x += dist_per_unit_x;
+            map_x += map_step_x;
+            ray.type_wall_hit = WallOrientation::EW;
+        } else {
+            dist_next_unit_y += dist_per_unit_y;
+            map_y += map_step_y;
+            ray.type_wall_hit = WallOrientation::NS;
+        }
+        // TBD: what about OneLoneCoder's max cast distance?
+    }
+
+    // Calculate distance to wall hit from camera plane, moving
+    //   perpendicular to the camera plane. If the actual length of the
+    //   ray cast from player to wall were used, the result would be
+    //   a fisheye effect. For example, if the player were squarely
+    //   facing a wall (wall parallel to camera plane,) in the resulting
+    //   render the wall should appear of even height. If using the
+    //   length of the rays as they hit the wall, the wall would instead
+    //   appear to taper to the left and right ends of the display.
+    //
+    // One way to calculate the perpendicular camera plane distance would be
+    //   to use the formula for shortest distance from a point to a line,
+    //   where the point is where the wall was hit, and the line is the
+    //   camera plane.
+    // TBD: evaluate and corroborate this last paragraph
+    // However, it can be done more simply: due to how dist_per_unit_? and
+    //   dist_next_unit_? were scaled by a factor of |ray.dir| above, the
+    //   length of dist_next_unit_? already almost equals the perpendicular
+    //   camera plane distance. We just need to subtract dist_per_unit_? once,
+    //   going one step back in the casting, as in the DDA loop above we went
+    //   one step further to end up inside the wall.
+
+    // TBD: double check these
+/*
+    if (state->fisheye) {  // Euclidean ray distance from player_pos
+        ray.wall_dist = (ray.type_wall_hit == WallOrientation::EW) ?
+            dist_next_unit_y : dist_next_unit_x;
+    } else {                // perpendicular distance from camera plane
+*/
+        ray.wall_dist = (ray.type_wall_hit == WallOrientation::EW) ?
+            dist_next_unit_x - dist_per_unit_x :
+            dist_next_unit_y - dist_per_unit_y;
+        /*
+    }
+        */
+    return ray;
+}
+
+static void renderPixelColumn(const uint16_t screen_x,
+                              ASCIIScreenBuffer& screen_buffer, const FovRay& ray) {
+    // The core illusion of raycasting comes from rendering walls in vertical
+    //   strips, one per each ray cast in the FOV, with each strip being longer
+    //   as the ray is shorter/wall is closer, forcing perspective.
+
+    // calculate height of vertical strip of wall to draw on screen
+    uint16_t line_h ( screen_buffer.h / ray.wall_dist );
+
+    // calculate lowest and highest pixel in strip, trimmed to screen borders
+    uint16_t ceiling_screen_y ( (line_h >= screen_buffer.h) ?
+                          0 : screen_buffer.h / 2 - line_h / 2 );
+    uint16_t floor_screen_y ( (line_h >= screen_buffer.h) ?
+                          screen_buffer.h - 1 : screen_buffer.h / 2 + line_h / 2 );
+
+    uint16_t screen_y;
+    // draw ceiling
+    for (screen_y = 0; screen_y < ceiling_screen_y; ++screen_y)
+        screen_buffer.charAtCoords(screen_x, screen_y) = ' ';
+    // draw wall, shading NS walls darker to differentiate
+    for (; screen_y <= floor_screen_y; ++screen_y) {
+        screen_buffer.charAtCoords(screen_x, screen_y) =
+            (ray.type_wall_hit == WallOrientation::EW) ? '@' : '|';
+    }
+    // draw floor
+    for (; screen_y < screen_buffer.h; ++screen_y)
+        screen_buffer.charAtCoords(screen_x, screen_y) = ' ';
+}
+
+/*
+//dummy fill of buffer while testing renderMap and renderHUD
+void App:renderTestChase() {
     static uint16_t chase_x { 2 };
     if (chase_x >= screen_buffer.w)
         chase_x = 2;
@@ -271,10 +420,21 @@ void App::renderView() {
     }
     ++chase_x;
 }
+*/
+
+void App::renderView() {
+    // raycasting loop: one column of pixels (screen coordinates) per pass
+    for (uint16_t screen_x { 0 }; screen_x < screen_buffer.w; ++screen_x) {
+        FovRay ray { castRay(screen_x, screen_buffer.w,
+                             state->player_pos, state->player_dir,
+                             state->view_plane, state->layout) };
+        renderPixelColumn(screen_x, screen_buffer, ray);
+    }
+}
 
 
 // https://stackoverflow.com/questions/6247153/angle-from-2d-unit-vector
-static constexpr inline double radiansToDegrees(const double radians) {
+constexpr inline double radiansToDegrees(const double radians) {
     return radians * (180 / M_PI);
 }
 

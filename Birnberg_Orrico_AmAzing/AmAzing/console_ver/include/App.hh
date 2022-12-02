@@ -39,25 +39,25 @@ public:
         resize(w * h, c);
     }
 /*
-    char* ptrToCoords(const uint16_t col, const uint16_t row) {
-        assert(col < w && row < h);
-        return data() + ((row * w) + col);
+    char* ptrToCoords(const uint16_t col_i, const uint16_t row_i) {
+        assert(col_i < w && row_i < h);
+        return data() + ((row_i * w) + col_i);
     }
 */
-    char& charAtCoords(const uint16_t col, const uint16_t row) {
-        assert(col < w && row < h);
-        return (*this)[(row * w) + col];
+    char& charAtCoords(const uint16_t col_i, const uint16_t row_i) {
+        assert(col_i < w && row_i < h);
+        return (*this)[(row_i * w) + col_i];
     }
 
-    void replaceAtCoords(const uint16_t col, const uint16_t row,
+    void replaceAtCoords(const uint16_t col_i, const uint16_t row_i,
                          const uint16_t len, const char* s) {
-        assert(col < w && row < h);
-        replace((row * w) + col, len, s);
+        assert(col_i < w && row_i < h);
+        replace((row_i * w) + col_i, len, s);
     }
 
-    std::string col(const uint16_t row) {
-        assert(row < h);
-        return substr(row * w, w);
+    std::string row(const uint16_t row_i) {
+        assert(row_i < h);
+        return substr(row_i * w, w);
     }
 };
 
@@ -79,9 +79,6 @@ private:
     RealTimeFpsCalc rt_fps_calc;
 
     // TBD: establish minimum viable display dimensions in chars (original was 1080 x 640px in SDL)
-    // tty display dimensions in characters
-    //uint16_t tty_window_w;
-    //uint16_t tty_window_h;
 
     // TBD: initially only supporting ASCII art
     //std::vector<RgbColor> screen_buffer;

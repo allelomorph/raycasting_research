@@ -15,7 +15,7 @@ extern "C" {
 
 
 template<typename FuncPtrType, typename ReturnType, typename ...ParamTypes>
-ReturnType safeCExec(FuncPtrType func, std::string func_name,
+ReturnType safeCExec(FuncPtrType func, const std::string& func_name,
                      bool (*is_failure)(ReturnType, int), ParamTypes ...params) {
     errno = 0;
     ReturnType retval { func(params...) };
@@ -32,7 +32,7 @@ ReturnType safeCExec(FuncPtrType func, std::string func_name,
 }
 
 template<typename FuncPtrType, typename ...ParamTypes>
-void safeCExec(FuncPtrType func, std::string func_name,
+void safeCExec(FuncPtrType func, const std::string& func_name,
                bool (*is_failure)(int), ParamTypes ...params) {
     errno = 0;
     std::ostringstream msg;
@@ -46,7 +46,7 @@ void safeCExec(FuncPtrType func, std::string func_name,
 }
 
 template<typename FuncPtrType, typename ...ParamTypes>
-void safeCExec(FuncPtrType func, std::string func_name,
+void safeCExec(FuncPtrType func, const std::string& func_name,
                ParamTypes ...params) {
     errno = 0;
     std::ostringstream msg;

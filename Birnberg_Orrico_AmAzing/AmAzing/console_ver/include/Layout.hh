@@ -17,7 +17,7 @@ struct Layout {
 
     Layout(std::string filename, Vector2d& pos);
 
-    inline bool coordsInsideWall(uint16_t x, uint16_t y) {
+    inline bool coordsInsideWall(const uint16_t x, const uint16_t y) const {
         return (map[y][x] != 0);
     }
 };

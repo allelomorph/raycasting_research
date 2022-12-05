@@ -175,15 +175,13 @@ static Vector2d rotateVector2d(const Vector2d& vec, const double radians) {
 }
 
 void App::updateData() {
-    double move_speed { pt_fps_calc.frame_duration_mvg_avg * state->base_movement_rate };
-    double rot_speed  { pt_fps_calc.frame_duration_mvg_avg *
-                        state->base_movement_rate * state->turn_rate };
-
-    Layout* layout { state->layout };
-    double& player_dir_x { state->player_dir(0) };
-    double& player_dir_y { state->player_dir(1) };
-    double& player_pos_x { state->player_pos(0) };
-    double& player_pos_y { state->player_pos(1) };
+    // ctrl+c: simulate SIGINT (quit)
+    if ((state->key_handler.isPressed(KEY_LEFTCTRL) ||
+         state->key_handler.isPressed(KEY_RIGHTCTRL)) &&
+        state->key_handler.isPressed(KEY_C)) {
+        state->done = true;
+        return;
+    }
 
     // q or escape keys: quit
     if (state->key_handler.isPressed(KEY_Q) ||
@@ -192,20 +190,25 @@ void App::updateData() {
         return;
     }
 
-    // left arrow key: rotate left (CCW)
-    if (state->key_handler.isPressed(KEY_LEFT)) {
-        state->player_dir = rotateVector2d(state->player_dir, rot_speed);
-        state->view_plane = rotateVector2d(state->view_plane, rot_speed);
-    }
-
-    // right arrow key: roatate right (CW)
-    if (state->key_handler.isPressed(KEY_RIGHT)) {
-        state->player_dir = rotateVector2d(state->player_dir, -rot_speed);
-        state->view_plane = rotateVector2d(state->view_plane, -rot_speed);
-    }
+    double move_speed { pt_fps_calc.frame_duration_mvg_avg * state->base_movement_rate };
+    double rot_speed  { pt_fps_calc.frame_duration_mvg_avg *
+                        state->base_movement_rate * state->turn_rate };
+    Layout* layout { state->layout };
+    double& player_dir_x { state->player_dir(0) };
+    double& player_dir_y { state->player_dir(1) };
+    double& player_pos_x { state->player_pos(0) };
+    double& player_pos_y { state->player_pos(1) };
 
     // Movement in the 2d map grid has been set up so +y/+i with map[i][j]/up on a
     //   printed map all represent moving north
+
+    // shift key: run
+    if (state->key_handler.isPressed(KEY_LEFTSHIFT) ||
+        state->key_handler.isPressed(KEY_RIGHTSHIFT)) {
+        move_speed *= 2;
+        rot_speed *= 2;
+    }
+
     // up arrow key: move forward
     if (state->key_handler.isPressed(KEY_UP)) {
         double start_ppx { player_pos_x };
@@ -224,31 +227,55 @@ void App::updateData() {
             player_pos_y -= player_dir_y * move_speed;
     }
 
-    // a key: move left (strafe)
-    if (state->key_handler.isPressed(KEY_A)) {
-        double start_ppx { player_pos_x };
-        if (!layout->coordsInsideWall(player_pos_x - player_dir_y * move_speed, player_pos_y))
-            player_pos_x -= player_dir_y * move_speed;
-        if (!layout->coordsInsideWall(start_ppx, player_pos_y + player_dir_x * move_speed))
-            player_pos_y += player_dir_x * move_speed;
-
+    if (state->key_handler.isPressed(KEY_LEFT)) {
+        if (state->key_handler.isPressed(KEY_LEFTALT) ||
+            state->key_handler.isPressed(KEY_RIGHTALT)) {
+            // alt + left arrow key: move left (strafe)
+            double start_ppx { player_pos_x };
+            if (!layout->coordsInsideWall(player_pos_x - player_dir_y * move_speed, player_pos_y))
+                player_pos_x -= player_dir_y * move_speed;
+            if (!layout->coordsInsideWall(start_ppx, player_pos_y + player_dir_x * move_speed))
+                player_pos_y += player_dir_x * move_speed;
+        } else {
+            // left arrow key: rotate left (CCW)
+            state->player_dir = rotateVector2d(state->player_dir, rot_speed);
+            state->view_plane = rotateVector2d(state->view_plane, rot_speed);
+        }
     }
 
-    // d key: move right (strafe)
-    if (state->key_handler.isPressed(KEY_D)) {
-        double start_ppx { player_pos_x };
-        if (!layout->coordsInsideWall(player_pos_x + player_dir_y * move_speed, player_pos_y))
-            player_pos_x += player_dir_y * move_speed;
-        if (!layout->coordsInsideWall(start_ppx, player_pos_y - player_dir_x * move_speed))
-            player_pos_y -= player_dir_x * move_speed;
-
+    if (state->key_handler.isPressed(KEY_RIGHT)) {
+        if (state->key_handler.isPressed(KEY_LEFTALT) ||
+            state->key_handler.isPressed(KEY_RIGHTALT)) {
+            // alt + right arrow key: move right (strafe)
+            double start_ppx { player_pos_x };
+            if (!layout->coordsInsideWall(player_pos_x + player_dir_y * move_speed, player_pos_y))
+                player_pos_x += player_dir_y * move_speed;
+            if (!layout->coordsInsideWall(start_ppx, player_pos_y - player_dir_x * move_speed))
+                player_pos_y -= player_dir_x * move_speed;
+        } else {
+            // right arrow key: roatate right (CW)
+            state->player_dir = rotateVector2d(state->player_dir, -rot_speed);
+            state->view_plane = rotateVector2d(state->view_plane, -rot_speed);
+        }
     }
 
-    // f key: toggle FPS overlay
-    state->show_fps = state->key_handler.isPressed(KEY_F);
+    // F1 key: toggle FPS overlay
+    if (state->key_handler.keyDownThisFrame(KEY_F1))
+        state->show_fps = !state->show_fps;
 
-    // m key: toggle map overlay
-    state->show_map = state->key_handler.isPressed(KEY_M);
+    // F2 key: toggle map overlay
+    if (state->key_handler.keyDownThisFrame(KEY_F2))
+        state->show_map = !state->show_map;
+
+    // F3 key: toggle debug mode
+    if (state->key_handler.keyDownThisFrame(KEY_F3))
+        state->debug_mode = !state->debug_mode;
+
+    // F4 key: toggle fisheye camera mode
+    if (state->key_handler.keyDownThisFrame(KEY_F4))
+        state->fisheye = !state->fisheye;
+
+    state->key_handler.decayToAutorepeat();
 }
 
 enum class WallOrientation { EW, NS };
@@ -263,8 +290,7 @@ struct FovRay {
  * calculate ray position and direction
  */
 static FovRay castRay(const uint16_t screen_x, const uint16_t screen_w,
-                      const Vector2d& player_pos, /*const*/ Vector2d& player_dir,
-                      /*const*/ Vector2d& view_plane, /*const*/ Layout* layout) {
+                      State* state) {
 
     // TBD: move camera_x calc outside function, to renderView loop?
     // x coordinate in the camera plane represented by the current
@@ -278,11 +304,11 @@ static FovRay castRay(const uint16_t screen_x, const uint16_t screen_w,
     // multiply camera_plane vector by scalar x, then add to direction vector
     //   to get ray direction
     // TBD: const palyer_dir or view_plane as this discards qualifiers
-    ray.dir = player_dir + (view_plane * camera_x);
+    ray.dir = state->player_dir + (state->view_plane * camera_x);
 
     // current map grid coordinates of ray
-    uint16_t map_x ( player_pos(0) );
-    uint16_t map_y ( player_pos(1) );
+    uint16_t map_x ( state->player_pos(0) );
+    uint16_t map_y ( state->player_pos(1) );
 
     // Initially the distances from the ray origin (player position) to its
     //   first intersections with a map unit grid vertical and horizonal,
@@ -307,24 +333,23 @@ static FovRay castRay(const uint16_t screen_x, const uint16_t screen_w,
     // setup map grid step and initial ray distance to next grid unit values
     if (ray.dir(0) < 0) {
         map_step_x = -1;
-        dist_next_unit_x = (player_pos(0) - map_x) * dist_per_unit_x;
+        dist_next_unit_x = (state->player_pos(0) - map_x) * dist_per_unit_x;
     } else {
         map_step_x = 1;
-        dist_next_unit_x = (map_x + 1.0 - player_pos(0)) * dist_per_unit_x;
+        dist_next_unit_x = (map_x + 1.0 - state->player_pos(0)) * dist_per_unit_x;
     }
     if (ray.dir(1) < 0) {
         map_step_y = -1;
-        dist_next_unit_y = (player_pos(1) - map_y) * dist_per_unit_y;
+        dist_next_unit_y = (state->player_pos(1) - map_y) * dist_per_unit_y;
     } else {
         map_step_y = 1;
-        dist_next_unit_y = (map_y + 1.0 - player_pos(1)) * dist_per_unit_y;
+        dist_next_unit_y = (map_y + 1.0 - state->player_pos(1)) * dist_per_unit_y;
     }
 
     // perform DDA algo, or the incremental casting of the ray
     // moves to a new map unit square every loop, as directed by map_step values
     // TBD: does orientation need to be set every loop?
-    // TBD: const layout as this discards qualifiers
-    while (!layout->coordsInsideWall(map_x, map_y)) {
+    for (const Layout* layout { state->layout }; !layout->coordsInsideWall(map_x, map_y); ) {
         if (dist_next_unit_x < dist_next_unit_y) {
             dist_next_unit_x += dist_per_unit_x;
             map_x += map_step_x;
@@ -359,18 +384,14 @@ static FovRay castRay(const uint16_t screen_x, const uint16_t screen_w,
     //   one step further to end up inside the wall.
 
     // TBD: double check these
-/*
     if (state->fisheye) {  // Euclidean ray distance from player_pos
         ray.wall_dist = (ray.type_wall_hit == WallOrientation::EW) ?
-            dist_next_unit_y : dist_next_unit_x;
+            dist_next_unit_x : dist_next_unit_y;
     } else {                // perpendicular distance from camera plane
-*/
         ray.wall_dist = (ray.type_wall_hit == WallOrientation::EW) ?
             dist_next_unit_x - dist_per_unit_x :
             dist_next_unit_y - dist_per_unit_y;
-        /*
     }
-        */
     return ray;
 }
 
@@ -425,9 +446,7 @@ void App:renderTestChase() {
 void App::renderView() {
     // raycasting loop: one column of pixels (screen coordinates) per pass
     for (uint16_t screen_x { 0 }; screen_x < screen_buffer.w; ++screen_x) {
-        FovRay ray { castRay(screen_x, screen_buffer.w,
-                             state->player_pos, state->player_dir,
-                             state->view_plane, state->layout) };
+        FovRay ray { castRay(screen_x, screen_buffer.w, state) };
         renderPixelColumn(screen_x, screen_buffer, ray);
     }
 }
@@ -472,9 +491,8 @@ void App::renderMap() {
              map_x <= player_x + map_delta_x; ++map_x) {
             if (map_x < 0 || map_y < 0 ||
                 map_x >= static_cast<int16_t>(layout->cols) ||
-                map_y >= static_cast<int16_t>(layout->rows)) {
-                line.push_back('*');
-            } else if (layout->map[map_y][map_x] == 0) {
+                map_y >= static_cast<int16_t>(layout->rows) ||
+                layout->map[map_y][map_x] == 0) {
                 line.push_back(' ');
             } else {
                 line.push_back(layout->map[map_y][map_x] + '0');

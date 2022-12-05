@@ -20,30 +20,34 @@
 #include <fstream>
 #include <iostream>       // cerr
 
+
 // used by determineInputDevice
 #define INPUT_EVENT_PATH   "/dev/input/"
 
 
 KeyHandler::KeyHandler() {
-    key_states = std::unordered_map<LinuxKeyCode, InputKey> {
-        { KEY_LEFT,       InputKey (KeyType::Live,        KEY_LEFT, "\u2190" ) },
-        { KEY_UP,         InputKey (KeyType::Live,        KEY_UP, "\u2191" ) },
-        { KEY_RIGHT,      InputKey (KeyType::Live,        KEY_RIGHT, "\u2192" ) },
-        { KEY_DOWN,       InputKey (KeyType::Live,        KEY_DOWN, "\u2193" ) },
-        { KEY_A,          InputKey (KeyType::Live,        KEY_A, "a" ) },
-        { KEY_D,          InputKey (KeyType::Live,        KEY_D, "d" ) },
-        { KEY_F,          InputKey (KeyType::ToggleOnOff, KEY_F, "f" ) },
-        { KEY_M,          InputKey (KeyType::ToggleOnOff, KEY_M, "m" ) },
-        { KEY_P,          InputKey (KeyType::ToggleOnOff, KEY_P, "p" ) },
-        { KEY_Q,          InputKey (KeyType::Live,        KEY_Q, "q" ) },
-        { KEY_C,          InputKey (KeyType::Live,        KEY_C, "c" ) },
-        { KEY_LEFTCTRL,   InputKey (KeyType::Live,        KEY_LEFTCTRL, "<Lctrl>" ) },
-        { KEY_RIGHTCTRL,  InputKey (KeyType::Live,        KEY_RIGHTCTRL, "<Rctrl>" ) },
-        { KEY_ESC,        InputKey (KeyType::Live,        KEY_ESC, "<esc>" ) },
+    key_states = std::unordered_map<LinuxKeyCode, KeyState> {
+        { KEY_LEFT,       KeyState (KEY_LEFT       ) },
+        { KEY_UP,         KeyState (KEY_UP         ) },
+        { KEY_RIGHT,      KeyState (KEY_RIGHT      ) },
+        { KEY_DOWN,       KeyState (KEY_DOWN       ) },
+        { KEY_C,          KeyState (KEY_C          ) },
+        { KEY_F1,         KeyState (KEY_F1         ) },
+        { KEY_F2,         KeyState (KEY_F2         ) },
+        { KEY_F3,         KeyState (KEY_F3         ) },
+        { KEY_F4,         KeyState (KEY_F4         ) },
+        { KEY_F5,         KeyState (KEY_F5         ) },
+        { KEY_LEFTSHIFT,  KeyState (KEY_LEFTSHIFT  ) },
+        { KEY_RIGHTSHIFT, KeyState (KEY_RIGHTSHIFT ) },
+        { KEY_LEFTCTRL,   KeyState (KEY_LEFTCTRL   ) },
+        { KEY_RIGHTCTRL,  KeyState (KEY_RIGHTCTRL  ) },
+        { KEY_LEFTALT,    KeyState (KEY_LEFTALT    ) },
+        { KEY_RIGHTALT,   KeyState (KEY_RIGHTALT   ) },
+        { KEY_ESC,        KeyState (KEY_ESC        ) }
     };
 }
 
-static std:: string generateUngrabMessage() {
+static std::string generateUngrabMessage() {
     std::ostringstream msg;
     static constexpr uint16_t msg_width { 100 };
     static std::string msg_border ( msg_width, '*' );
@@ -76,7 +80,15 @@ KeyHandler::~KeyHandler() {
     ungrabDevice();
 }
 
-bool KeyHandler::isPressed(LinuxKeyCode keysym) {
+bool KeyHandler::keyDownThisFrame(const LinuxKeyCode keysym) {
+    // remember that operator[] inserts a new key if not found
+    auto ks_it { key_states.find(keysym) };
+    if (ks_it != key_states.end())
+        return (ks_it->second.keyDownThisFrame());
+    return false;
+}
+
+bool KeyHandler::isPressed(const LinuxKeyCode keysym) {
     // remember that operator[] inserts a new key if not found
     auto ks_it { key_states.find(keysym) };
     if (ks_it != key_states.end())
@@ -84,24 +96,13 @@ bool KeyHandler::isPressed(LinuxKeyCode keysym) {
     return false;
 }
 
-bool KeyHandler::isReleased(LinuxKeyCode keysym) {
+bool KeyHandler::isReleased(const LinuxKeyCode keysym) {
     // remember that operator[] inserts a new key if not found
     auto ks_it { key_states.find(keysym) };
     if (ks_it != key_states.end())
         return (ks_it->second.isReleased());
     return true;
 }
-
-/*
-void KeyHandler::handleKeyEvent(const struct input_event& ev) {
-    // f (toggle FPS counter,) m (toggle map overlay,) and p (pause music)
-    //   toggle states currently stored as key states instead of State members
-    auto ks_it { key_states.find(ev.code) };
-    if (ks_it == key_states.end())  // unsupported key
-        return;
-    ks_it->second.updateState(ev.value);
-}
-*/
 
 void KeyHandler::getKeyEvents() {
     std::ostringstream error_oss;
@@ -116,7 +117,7 @@ void KeyHandler::getKeyEvents() {
     //   in this application are SIGTERM, SIGINT, or SIGWINCH)
     safeCExec(select, "select", C_RETURN_ERRNO_TEST(int, (ret == -1 && err != EINTR)),
               kbd_device_fd + 1, &rdfds, nullptr, nullptr, &tv);
-    // FD_ISSET false if select timed out
+    // (was select() interrupted by a signal, or did it time out?)
     if (errno == EINTR || !FD_ISSET(kbd_device_fd, &rdfds))
         return;
     ssize_t rd { safeCExec(read, "read", C_RETURN_TEST(ssize_t, (ret == -1)),
@@ -131,23 +132,17 @@ void KeyHandler::getKeyEvents() {
         // Reading from the keyboard device, so all events should be EV_KEY
         if (ev[i].type != EV_KEY)
             continue;
-        // TBD: is there a way to standardize handling of ctrl + key?
-        if (ev[i].code == KEY_C && ev[i].value == VAL_PRESS) {
-            // TBD: alter state->done instead?
-            sigint_sigterm_received = (isPressed(KEY_LEFTCTRL) || isPressed(KEY_RIGHTCTRL));
-            continue;
-        }
         auto ks_it { key_states.find(ev[i].code) };
         if (ks_it == key_states.end())  // unsupported key
             continue;
-        ks_it->second.updateState(ev[i].value);
+        ks_it->second.update(static_cast<LinuxKeyValue>(ev[i].value));
     }
 }
 
 // inspired by https://github.com/kernc/logkeys/blob/master/src/logkeys.cc
 //    determine_input_device(), but parses file directly rather than popen(grep...)
 // determine likely keyboard device file path via /proc/bus/input/devices
-static std::string determineInputDevice(void) {
+static std::string determineInputDevice() {
     // TBD: make filename a macro/constexpr?
     std::ifstream ifs( "/proc/bus/input/devices" );
     std::ostringstream error_msg;
@@ -256,7 +251,7 @@ static std::string determineInputDevice(void) {
     return device_paths[max_device_i];
 }
 
-static std::string generateGrabMessage(std::string exec_filename) {
+static std::string generateGrabMessage(const std::string exec_filename) {
     std::ostringstream msg;
     static constexpr uint16_t msg_width { 100 };
     static std::string msg_border ( msg_width, '*' );
@@ -274,7 +269,7 @@ static std::string generateGrabMessage(std::string exec_filename) {
 }
 
 // check if on pty or tty
-static void determineTtys(std::string& exec_filename,
+static void determineTtys(const std::string& exec_filename,
                           std::string& input_tty_name, std::string& display_tty_name) {
     // Use of ttyname taken from coreutils tty, see:
     //  - https://github.com/coreutils/coreutils/blob/master/src/tty.c
@@ -330,7 +325,7 @@ static void determineTtys(std::string& exec_filename,
     input_tty_name = candidate_tty_name;
 }
 
-void KeyHandler::grabDevice(std::string& exec_filename) {
+void KeyHandler::grabDevice(const std::string& exec_filename) {
     std::ostringstream error_msg;
 
     kbd_device_fd = safeCExec(open, "open", C_RETURN_TEST(int, (ret == -1)),
@@ -351,7 +346,7 @@ void KeyHandler::grabDevice(std::string& exec_filename) {
     }
 }
 
-void KeyHandler::initialize(std::string& exec_filename) {
+void KeyHandler::initialize(const std::string& exec_filename) {
     kbd_device_path = determineInputDevice();
     std::cout << "Selected keyboard device path: " << kbd_device_path << '\n';
 
@@ -363,4 +358,14 @@ void KeyHandler::initialize(std::string& exec_filename) {
     determineTtys(exec_filename, input_tty_name, display_tty_name);
     std::cout << "Terminal focus for input: " << input_tty_name << "\n";
     std::cout << "Terminal output sent to: " << display_tty_name << "\n";
+}
+
+// game frames may pass between consuming a key press event and its first
+//   autorepeat event; so to maintain the distinction between a key being
+//   pressed and a key being held down at frame granularity, this can be used
+//   to mark any keys pressed this frame as held (repeat) at the end of a frame
+void KeyHandler::decayToAutorepeat() {
+    for (auto& pair : key_states) {
+        pair.second.decayToAutorepeat();
+    }
 }

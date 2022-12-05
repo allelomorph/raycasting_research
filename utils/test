@@ -1,0 +1,12 @@
+# 1 "macro_test.cc"
+# 1 "<built-in>"
+# 1 "<command-line>"
+# 1 "/usr/include/stdc-predef.h" 1 3 4
+# 1 "<command-line>" 2
+# 1 "macro_test.cc"
+# 14 "macro_test.cc"
+int main() {
+    static_cast<bool (*)(clock_t ret, int err)>([](clock_t ret, int err){ retrun ret == -1; });
+    static_cast<bool (*)(clock_t ret, int )>([](clock_t ret, int ){ return (ret == -1); });
+    static_cast<bool (*)(int err)>([](int err){ return errno != EINTR; });
+}

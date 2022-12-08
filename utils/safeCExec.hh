@@ -8,11 +8,14 @@ extern "C" {
 #include "errnoname.h"
 }
 
+#include <cstring>    // strerror
+
+#include <stdexcept>  // runtime_error
 #include <string>
 #include <sstream>
 
-#include <cstring>    // strerror
 
+// TBD: how to allow for throwing other exception types, eg bad_alloc?
 
 template<typename FuncPtrType, typename ReturnType, typename ...ParamTypes>
 ReturnType safeCExec(FuncPtrType func, const std::string& func_name,
@@ -35,12 +38,11 @@ template<typename FuncPtrType, typename ...ParamTypes>
 void safeCExec(FuncPtrType func, const std::string& func_name,
                bool (*is_failure)(int), ParamTypes ...params) {
     errno = 0;
-    std::ostringstream msg;
-
     func(params...);
     if (errno != 0 && is_failure(errno)) {
-        msg << func_name << ": ";
-        msg << errnoname(errno) << " - " << std::strerror(errno);
+        std::ostringstream msg;
+        msg << func_name << ": " <<
+            errnoname(errno) << " - " << std::strerror(errno);
         throw std::runtime_error(msg.str());
     }
 }
@@ -49,12 +51,11 @@ template<typename FuncPtrType, typename ...ParamTypes>
 void safeCExec(FuncPtrType func, const std::string& func_name,
                ParamTypes ...params) {
     errno = 0;
-    std::ostringstream msg;
-
     func(params...);
     if (errno != 0) {
-        msg << func_name << ": ";
-        msg << errnoname(errno) << " - " << std::strerror(errno);
+        std::ostringstream msg;
+        msg << func_name << ": " <<
+            errnoname(errno) << " - " << std::strerror(errno);
         throw std::runtime_error(msg.str());
     }
 }

@@ -27,6 +27,11 @@ public:
         return (!pressed);
     }
 
+    // Game frames may pass between consuming a key press event and its first
+    //   autorepeat event; so to maintain the distinction between a key being
+    //   pressed and a key being held down at frame granularity, this can be
+    //   used to mark any keys pressed this frame as held (repeat) at the end
+    //   of that frame
     inline void decayToAutorepeat() {
         if (pressed)
             repeat = true;

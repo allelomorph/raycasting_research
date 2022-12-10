@@ -1,4 +1,4 @@
-#include "KbdInputMgr.hh"
+#include "SdlKbdInputMgr.hh"
 
 
 SdlKbdInputMgr::SdlKbdInputMgr() {

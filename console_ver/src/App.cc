@@ -21,8 +21,8 @@
 
 
 App::App(const char* efn, const char* mfn) :
+    state(new State<LinuxKbdInputMgr>),
     exec_filename(efn), map_filename(mfn) {
-    state = State::getInstance();
 }
 
 App::~App() {
@@ -34,7 +34,7 @@ App::~App() {
 volatile std::sig_atomic_t sigint_sigterm_received = 0;
 volatile std::sig_atomic_t sigwinch_received = 0;
 
-// TBD: due to getEvents->getKeyEvents blocking on select(), program will hang when killed until some input events are read in that frame
+
 static void sigint_sigterm_handler(int /*signal*/) {
     sigint_sigterm_received = 1;
 }
@@ -51,7 +51,7 @@ void App::initialize() {
         state->layout = new Layout(map_filename, state->player_pos);
     } catch (std::runtime_error &re) {
         std::cerr << re.what() << std::endl;
-        state->done = true;
+        state->stop = true;
         return;
     }
 
@@ -70,7 +70,7 @@ void App::initialize() {
     pt_fps_calc.initialize();
     rt_fps_calc.initialize();
 
-    state->key_handler.initialize(exec_filename);
+    state->kbd_input_mgr.initialize(exec_filename);
 
     // get terminal window size in chars
     // TBD: add note about finding this ioctl in tput or stty source
@@ -110,12 +110,12 @@ void App::run() {
     initialize();
 
     // TBD: better consolidate these two tests
-    while(!sigint_sigterm_received && !state->done) {
+    while(!sigint_sigterm_received && !state->stop) {
         pt_fps_calc.calculate();
         rt_fps_calc.calculate();
 
         getEvents();
-        updateData(/*fps_calc.moving_avg_frame_time*/);
+        updateData();
 
         if (sigwinch_received) {
             // terminal window size changes require rehiding the cursor
@@ -153,7 +153,7 @@ void App::run() {
 }
 
 void App::getEvents() {
-    state->key_handler.getKeyEvents();
+    state->kbd_input_mgr.consumeKeyEvents();
 }
 
 // TBD: make member function in Matrix.hh?
@@ -176,17 +176,17 @@ static Vector2d rotateVector2d(const Vector2d& vec, const double radians) {
 
 void App::updateData() {
     // ctrl+c: simulate SIGINT (quit)
-    if ((state->key_handler.isPressed(KEY_LEFTCTRL) ||
-         state->key_handler.isPressed(KEY_RIGHTCTRL)) &&
-        state->key_handler.isPressed(KEY_C)) {
-        state->done = true;
+    if ((state->kbd_input_mgr.isPressed(KEY_LEFTCTRL) ||
+         state->kbd_input_mgr.isPressed(KEY_RIGHTCTRL)) &&
+        state->kbd_input_mgr.isPressed(KEY_C)) {
+        state->stop = true;
         return;
     }
 
     // q or escape keys: quit
-    if (state->key_handler.isPressed(KEY_Q) ||
-        state->key_handler.isPressed(KEY_ESC)) {
-        state->done = true;
+    if (state->kbd_input_mgr.isPressed(KEY_Q) ||
+        state->kbd_input_mgr.isPressed(KEY_ESC)) {
+        state->stop = true;
         return;
     }
 
@@ -203,14 +203,14 @@ void App::updateData() {
     //   printed map all represent moving north
 
     // shift key: run
-    if (state->key_handler.isPressed(KEY_LEFTSHIFT) ||
-        state->key_handler.isPressed(KEY_RIGHTSHIFT)) {
+    if (state->kbd_input_mgr.isPressed(KEY_LEFTSHIFT) ||
+        state->kbd_input_mgr.isPressed(KEY_RIGHTSHIFT)) {
         move_speed *= 2;
         rot_speed *= 2;
     }
 
     // up arrow key: move forward
-    if (state->key_handler.isPressed(KEY_UP)) {
+    if (state->kbd_input_mgr.isPressed(KEY_UP)) {
         double start_ppx { player_pos_x };
         if (!layout->coordsInsideWall(player_pos_x + player_dir_x * move_speed, player_pos_y))
             player_pos_x += player_dir_x * move_speed;
@@ -219,7 +219,7 @@ void App::updateData() {
     }
 
     // down arrow key: move backward
-    if (state->key_handler.isPressed(KEY_DOWN)) {
+    if (state->kbd_input_mgr.isPressed(KEY_DOWN)) {
         double start_ppx { player_pos_x };
         if (!layout->coordsInsideWall(player_pos_x - player_dir_x * move_speed, player_pos_y))
             player_pos_x -= player_dir_x * move_speed;
@@ -227,9 +227,9 @@ void App::updateData() {
             player_pos_y -= player_dir_y * move_speed;
     }
 
-    if (state->key_handler.isPressed(KEY_LEFT)) {
-        if (state->key_handler.isPressed(KEY_LEFTALT) ||
-            state->key_handler.isPressed(KEY_RIGHTALT)) {
+    if (state->kbd_input_mgr.isPressed(KEY_LEFT)) {
+        if (state->kbd_input_mgr.isPressed(KEY_LEFTALT) ||
+            state->kbd_input_mgr.isPressed(KEY_RIGHTALT)) {
             // alt + left arrow key: move left (strafe)
             double start_ppx { player_pos_x };
             if (!layout->coordsInsideWall(player_pos_x - player_dir_y * move_speed, player_pos_y))
@@ -243,9 +243,9 @@ void App::updateData() {
         }
     }
 
-    if (state->key_handler.isPressed(KEY_RIGHT)) {
-        if (state->key_handler.isPressed(KEY_LEFTALT) ||
-            state->key_handler.isPressed(KEY_RIGHTALT)) {
+    if (state->kbd_input_mgr.isPressed(KEY_RIGHT)) {
+        if (state->kbd_input_mgr.isPressed(KEY_LEFTALT) ||
+            state->kbd_input_mgr.isPressed(KEY_RIGHTALT)) {
             // alt + right arrow key: move right (strafe)
             double start_ppx { player_pos_x };
             if (!layout->coordsInsideWall(player_pos_x + player_dir_y * move_speed, player_pos_y))
@@ -260,22 +260,22 @@ void App::updateData() {
     }
 
     // F1 key: toggle FPS overlay
-    if (state->key_handler.keyDownThisFrame(KEY_F1))
+    if (state->kbd_input_mgr.keyDownThisFrame(KEY_F1))
         state->show_fps = !state->show_fps;
 
     // F2 key: toggle map overlay
-    if (state->key_handler.keyDownThisFrame(KEY_F2))
+    if (state->kbd_input_mgr.keyDownThisFrame(KEY_F2))
         state->show_map = !state->show_map;
 
     // F3 key: toggle debug mode
-    if (state->key_handler.keyDownThisFrame(KEY_F3))
+    if (state->kbd_input_mgr.keyDownThisFrame(KEY_F3))
         state->debug_mode = !state->debug_mode;
 
     // F4 key: toggle fisheye camera mode
-    if (state->key_handler.keyDownThisFrame(KEY_F4))
+    if (state->kbd_input_mgr.keyDownThisFrame(KEY_F4))
         state->fisheye = !state->fisheye;
 
-    state->key_handler.decayToAutorepeat();
+    state->kbd_input_mgr.decayToAutorepeat();
 }
 
 enum class WallOrientation { EW, NS };
@@ -289,8 +289,9 @@ struct FovRay {
 /*
  * calculate ray position and direction
  */
+// TBD: make compatible with templated State
 static FovRay castRay(const uint16_t screen_x, const uint16_t screen_w,
-                      State* state) {
+                      State<LinuxKbdInputMgr>* state) {
 
     // TBD: move camera_x calc outside function, to renderView loop?
     // x coordinate in the camera plane represented by the current
@@ -482,7 +483,7 @@ void App::renderMap() {
     uint16_t player_y ( state->player_pos(1) );
     uint16_t map_delta_y ( state->map_h / 2 );
     uint16_t map_delta_x ( state->map_w / 2 );
-    auto* layout { state->layout };
+    Layout* layout { state->layout };
     for (int16_t map_y ( player_y + map_delta_y );
          map_y >= player_y - map_delta_y; --map_y, ++display_row) {
         line.clear();
@@ -576,8 +577,8 @@ void App::renderHUD() {
     }
 
     if (state->debug_mode && screen_buffer.h >= 13) {
-        std::sprintf(hud_line, "     done: %i show_fps: %i show_map: %i",
-                     state->done, state->show_fps, state->show_map);
+        std::sprintf(hud_line, "     stop: %i show_fps: %i show_map: %i",
+                     state->stop, state->show_fps, state->show_map);
         hud_line_sz = std::strlen(hud_line);
         // also right justified (all lines should be left padded to equal length)
         replace_col = screen_buffer.w - hud_line_sz;
@@ -601,28 +602,28 @@ void App::renderHUD() {
         screen_buffer.replaceAtCoords(replace_col, 6,
                                       hud_line_sz, hud_line);
 
-        auto& key_handler { state->key_handler };
+        auto& kbd_input_mgr { state->kbd_input_mgr };
         std::sprintf(hud_line, "                    user input keys:");
         screen_buffer.replaceAtCoords(replace_col, 7,
                                       hud_line_sz, hud_line);
         std::sprintf(hud_line, "      down: %i right: %i up: %i left: %i",
-                     key_handler.isPressed(KEY_DOWN), key_handler.isPressed(KEY_RIGHT),
-                     key_handler.isPressed(KEY_UP), key_handler.isPressed(KEY_LEFT));
+                     kbd_input_mgr.isPressed(KEY_DOWN), kbd_input_mgr.isPressed(KEY_RIGHT),
+                     kbd_input_mgr.isPressed(KEY_UP), kbd_input_mgr.isPressed(KEY_LEFT));
         screen_buffer.replaceAtCoords(replace_col, 8,
                                       hud_line_sz, hud_line);
         std::sprintf(hud_line, "                           a: %i d: %i",
-                     key_handler.isPressed(KEY_A), key_handler.isPressed(KEY_D));
+                     kbd_input_mgr.isPressed(KEY_A), kbd_input_mgr.isPressed(KEY_D));
         screen_buffer.replaceAtCoords(replace_col, 9,
                                       hud_line_sz, hud_line);
         std::sprintf(hud_line, "                      p: %i m: %i f: %i",
-                     key_handler.isPressed(KEY_P), key_handler.isPressed(KEY_M),
-                     key_handler.isPressed(KEY_F));
+                     kbd_input_mgr.isPressed(KEY_P), kbd_input_mgr.isPressed(KEY_M),
+                     kbd_input_mgr.isPressed(KEY_F));
         screen_buffer.replaceAtCoords(replace_col, 10,
                                       hud_line_sz, hud_line);
         std::sprintf(hud_line, "       Lctrl: %i Rctrl: %i c: %i esc: %i",
-                     key_handler.isPressed(KEY_LEFTCTRL),
-                     key_handler.isPressed(KEY_RIGHTCTRL),
-                     key_handler.isPressed(KEY_C), key_handler.isPressed(KEY_ESC));
+                     kbd_input_mgr.isPressed(KEY_LEFTCTRL),
+                     kbd_input_mgr.isPressed(KEY_RIGHTCTRL),
+                     kbd_input_mgr.isPressed(KEY_C), kbd_input_mgr.isPressed(KEY_ESC));
         screen_buffer.replaceAtCoords(replace_col, 11,
                                       hud_line_sz, hud_line);
         double player_dir_len { std::sqrt(

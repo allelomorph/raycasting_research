@@ -12,23 +12,24 @@
 #include <string>
 
 
-class LinuxKbdInputMgr : public KbdInputMgr {
+class LinuxKbdInputMgr {
 private:
     std::unordered_map<LinuxKeyCode, LinuxKeyState> key_states;
 
-    std::string display_tty_name;
+    std::string input_tty_name;
     std::string kbd_device_path;
 
     static constexpr int UNINITIALIZED_FD  { -1 };
     int kbd_device_fd { UNINITIALIZED_FD };      // need fd to pass to ioctl()
 
-    static constexpr std::string INPUT_EVENT_PATH_PREFIX {
+    // TBD: should these be variables in case of re-init?
+    static constexpr char INPUT_EVENT_PATH_PREFIX[] {
         "/dev/input/event" };                    // used by determineInputDevice
-    static constexpr std::string INPUT_DEVICES_PATH {
-        "/proc/bus/input/devices" );             // used by determineInputDevice
+    static constexpr char INPUT_DEVICES_PATH[] {
+        "/proc/bus/input/devices" };             // used by determineInputDevice
 
-    fd_set rdfds;                                // used by select() in getKeyEvents
-    // When in tty mode, select() blocks getKeyEvents and thus the main game
+    fd_set rdfds;                                // used by select() in consumeKeyEvents
+    // When in tty mode, select() blocks consumeKeyEvents and thus the main game
     //   loop until the keyboard device file represented by kbd_device_fd fills
     //   with input_event structs to read. This means that the timeout for
     //   select() effectively creates a real time FPS cap.

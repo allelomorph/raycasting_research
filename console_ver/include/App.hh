@@ -3,10 +3,12 @@
 
 #include "State.hh"
 #include "FpsCalc.hh"
+#include "LinuxKbdInputMgr.hh"
+#include "SdlKbdInputMgr.hh"
 
-#include <csignal>           // sig_atomic_t
-#include <cstdint>           // uint16_t
-#include <cassert>           // uint16_t
+#include <csignal>               // sig_atomic_t
+#include <cstdint>               // uint16_t
+#include <cassert>               // uint16_t
 
 #include <string>
 #include <vector>
@@ -70,13 +72,16 @@ public:
 
     void run();
 private:
-    State *state;
+    // TBD: no longer singleton pattern, change from pointer after delegating
+    //   tasks in initialize()
+    State<LinuxKbdInputMgr>* state;
 
     std::string exec_filename;
+    // TBD: could be member of Layout
     std::string map_filename;
 
     ProcessTimeFpsCalc pt_fps_calc;
-    RealTimeFpsCalc rt_fps_calc;
+    RealTimeFpsCalc    rt_fps_calc;
 
     // TBD: establish minimum viable display dimensions in chars (original was 1080 x 640px in SDL)
 
@@ -88,12 +93,14 @@ private:
     void initialize();
 
     void getEvents();
+    // TBD: move to State::updateFromInput(frame_duration_mvg_avg)?
     void updateData();
 
     void renderView();
     void renderMap();
     void renderHUD();
 
+    // TBD: drawFrame instead?
     void drawScreen();
 };
 

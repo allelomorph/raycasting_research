@@ -3,6 +3,9 @@
 
 #include "KeyState.hh"
 
+#include <SDL2/SDL_keycode.h> // SDL_Keycode
+#include <SDL2/SDL_events.h>  // SDL_KeyboardEvent
+
 #include <unordered_map>
 
 

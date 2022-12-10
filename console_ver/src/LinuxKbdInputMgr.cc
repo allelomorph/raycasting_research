@@ -1,4 +1,4 @@
-#include "KbdInputMgr.hh"
+#include "LinuxKbdInputMgr.hh"
 #include "safeCExec.hh"
 
 #include <linux/input.h>   // input_event EV_* KEY_*
@@ -20,10 +20,15 @@
 #include <iostream>        // cerr
 
 
+// pre-C++17, static constexpr class members also need defintion (without init)
+//   in namespace scope
+constexpr char LinuxKbdInputMgr::INPUT_EVENT_PATH_PREFIX[];
+constexpr char LinuxKbdInputMgr::INPUT_DEVICES_PATH[];
+
 void LinuxKbdInputMgr::ungrabDevice() {
     if (kbd_device_fd != UNINITIALIZED_FD) {
         safeCExec(ioctl, "ioctl", C_RETURN_TEST(int, (ret == -1)),
-                  kbd_device_fd, EVIOCGRAB, static_cast<void*>(0));
+                  kbd_device_fd, EVIOCGRAB, (void*)0);
         safeCExec(close, "close", C_RETURN_TEST(int, (ret == -1)),
                   kbd_device_fd);
         std::ofstream ofs;
@@ -31,7 +36,7 @@ void LinuxKbdInputMgr::ungrabDevice() {
         if (ofs.is_open()) {
             // generate ungrab message
             static constexpr uint16_t msg_width { 100 };
-            static std::string msg_border ( msg_width, '*' );
+            static const std::string msg_border ( msg_width, '*' );
             static constexpr char msg_line_1_prefix[] { "Process " };
             static constexpr char msg_line_1_suffix[] { " is no longer grabbing keyboard events." };
             ofs << '\n';
@@ -49,10 +54,10 @@ void LinuxKbdInputMgr::grabDevice(const std::string& exec_filename) {
                               kbd_device_path.c_str(), O_RDONLY);
     try {
         safeCExec(ioctl, "ioctl", C_RETURN_TEST(int, (ret == -1)),
-                  kbd_device_fd, EVIOCGRAB, static_cast<void*>(1));
+                  kbd_device_fd, EVIOCGRAB, (void*)1);
     } catch (std::runtime_error& re) {
         safeCExec(ioctl, "ioctl", C_RETURN_TEST(int, (ret == -1)),
-                  kbd_device_fd, EVIOCGRAB, static_cast<void*>(0));
+                  kbd_device_fd, EVIOCGRAB, (void*)0);
         throw re;
     }
     std::ofstream ofs;
@@ -60,7 +65,7 @@ void LinuxKbdInputMgr::grabDevice(const std::string& exec_filename) {
     if (ofs.is_open()) {
         // generate grab message
         static constexpr uint16_t msg_width { 100 };
-        static constexpr std::string msg_border ( msg_width, '*' );
+        static const std::string msg_border ( msg_width, '*' );
         static constexpr char msg_line_1_prefix[] { "WARNING! Process " };
         static constexpr char msg_line_1_suffix[] { " is grabbing keyboard events." };
         static constexpr char msg_line_2[] { "Please maintain keyboard focus "
@@ -277,7 +282,7 @@ void LinuxKbdInputMgr::initialize(const std::string& exec_filename) {
 
     grabDevice(exec_filename);
 
-    // init fd_set used by select(2) in getKeyEvents
+    // init fd_set used by select(2) in consumeKeyEvents
     FD_ZERO(&rdfds);
 }
 

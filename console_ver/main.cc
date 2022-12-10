@@ -92,6 +92,6 @@ int main(int argc, char* const argv[]) {
     }
 
     // TBD: currently defaults to tty, eventually to SDL
-    App app(argv[0], map_filename.c_str()/*, io_mode*/);
+    App app(argv[0], map_filename/*, io_mode*/);
     app.run();
 }

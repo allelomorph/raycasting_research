@@ -33,23 +33,29 @@ public:
      * game settings
      */
     // TBD: reset defaults after development
-    bool     show_map       { true };
-    // map HUD hieght : screen height
-    double   map_proportion { 1.0/3 };
+    bool     show_map          { true };
+    // minimap height : screen height
+    double   map_proportion    { 1.0/3 };
+    // TBD: move map dims to DisplayMgr
     uint16_t map_h;
     uint16_t map_w;
-    bool     show_fps       { false };
-    bool     debug_mode     { true };
+
+    bool     show_fps          { false };
+    bool     debug_mode        { true };
     // when true, use real ray distance to wall rather than perpendicular
     //   camera plane distance
-    bool     fisheye        { false };
+    bool     fisheye           { false };
+    // used to determine player movement speed, as pegged to frame rate
+    double base_movement_rate  { 5.0 };
+    // expressed as percentage of base_movement_rate
+    double turn_rate           { 0.6 };  // 3.0
 
     /*
-     * floor map (with starting positions of actors)
+     * stage map
      */
-    // using pointer to control when constructor is called: during init
-    //   TBD: or when new map file is loaded
-    Layout* layout { nullptr };
+    // 2D grid representing top down view of play area (with starting positions
+    //   of actors)
+    Layout layout;
 
     /*
      * user input
@@ -77,14 +83,22 @@ public:
     // When the player rotates, the values of dir and plane will be changed,
     //   but should always remain perpendicular and of constant length.
     Vector2d view_plane;
-    // used to determine player movement speed, as pegged to frame rate
-    double base_movement_rate;
-    // expressed as percentage of base_movement_rate
-    double turn_rate;
 
-    ~State() {
-        if (layout != nullptr)
-            delete layout;
+    void initialize(const std::string& exec_filename,
+                    const std::string& map_filename) {
+        // parse map file to get maze and starting actor positions
+        layout.loadMapFile(map_filename, player_pos);
+
+        kbd_input_mgr.initialize(exec_filename);
+
+        // Starting direction vector is a bit longer than the camera plane, so
+        //   the FOV will be smaller than 90° (more precisely, the FOV is
+        //   2 * atan(0.66 (magnitude of view_plane) / 1.0 (magnitude of
+        //   player_dir)), or 66°.
+        // Both magnitudes could change provided they stay in proportion, but
+        //   here for convenience we make the direction a unit vector.
+        player_dir << 0, 1;
+        view_plane << 2.0/3, 0;
     }
 };
 

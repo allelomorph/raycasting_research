@@ -20,7 +20,7 @@
 #include <string>
 
 
-App::App(const char* efn, const char* mfn) :
+App::App(const char* efn, const std::string& mfn) :
     state(new State<LinuxKbdInputMgr>),
     exec_filename(efn), map_filename(mfn) {
 }
@@ -44,34 +44,12 @@ static void sigwinch_handler(int /*signal*/) {
 }
 
 void App::initialize() {
-    // TBD: change to using constructor/destructor instead of new/delete, but
-    //   allowing for future ability to load new maps on the fly
-    // parse map file, also sets player_pos
-    try {
-        state->layout = new Layout(map_filename, state->player_pos);
-    } catch (std::runtime_error &re) {
-        std::cerr << re.what() << std::endl;
-        state->stop = true;
-        return;
-    }
-
-    // TBD: following Lode example over AmAzing, (x, y) order
-    // Here the direction vector is a bit longer than the camera plane, so the
-    //   FOV will be smaller than 90° (more precisely, the FOV is
-    //   2 * atan(0.66 (magnitude of view_plane) / 1.0 (magnitude of player_dir)), or 66°.
-    // Both magnitudes could change provided they stay in proportion, but here
-    //   for convenience we make the direction a unit vector.
-    state->player_dir << 0, 1;
-    state->view_plane << 2.0/3, 0;
-
-    state->base_movement_rate = 5.0;
-    state->turn_rate = 0.6;           // 3.0
+    state->initialize(exec_filename, map_filename);
 
     pt_fps_calc.initialize();
     rt_fps_calc.initialize();
 
-    state->kbd_input_mgr.initialize(exec_filename);
-
+    // TBD: move to DisplayMgr
     // get terminal window size in chars
     // TBD: add note about finding this ioctl in tput or stty source
     struct winsize winsz;
@@ -81,6 +59,7 @@ void App::initialize() {
     // TBD: shade only for testing map and hud
     screen_buffer.resizeToDims(winsz.ws_col, winsz.ws_row);
 
+    // TBD: move to DisplayMgr
     state->map_h = screen_buffer.h * state->map_proportion;
     if (state->map_h % 2 == 0)
         ++(state->map_h);
@@ -99,6 +78,7 @@ void App::initialize() {
     // force scrollback of all terminal text before frame display
     // TBD: is there a way to do this with CSIs instead of a dummy frame?
     // TBD: could just be same as drawScreen on empty screen_buffer
+    // TBD: move to DisplayMgr
     for (uint16_t y {0}; y < screen_buffer.h; ++y) {
         std::cout << std::string(screen_buffer.w, ' ') << '\n';
     }
@@ -193,7 +173,7 @@ void App::updateData() {
     double move_speed { pt_fps_calc.frame_duration_mvg_avg * state->base_movement_rate };
     double rot_speed  { pt_fps_calc.frame_duration_mvg_avg *
                         state->base_movement_rate * state->turn_rate };
-    Layout* layout { state->layout };
+    Layout& layout { state->layout };
     double& player_dir_x { state->player_dir(0) };
     double& player_dir_y { state->player_dir(1) };
     double& player_pos_x { state->player_pos(0) };
@@ -212,18 +192,18 @@ void App::updateData() {
     // up arrow key: move forward
     if (state->kbd_input_mgr.isPressed(KEY_UP)) {
         double start_ppx { player_pos_x };
-        if (!layout->coordsInsideWall(player_pos_x + player_dir_x * move_speed, player_pos_y))
+        if (!layout.tileIsWall(player_pos_x + player_dir_x * move_speed, player_pos_y))
             player_pos_x += player_dir_x * move_speed;
-        if (!layout->coordsInsideWall(start_ppx, player_pos_y + player_dir_y * move_speed))
+        if (!layout.tileIsWall(start_ppx, player_pos_y + player_dir_y * move_speed))
             player_pos_y += player_dir_y * move_speed;
     }
 
     // down arrow key: move backward
     if (state->kbd_input_mgr.isPressed(KEY_DOWN)) {
         double start_ppx { player_pos_x };
-        if (!layout->coordsInsideWall(player_pos_x - player_dir_x * move_speed, player_pos_y))
+        if (!layout.tileIsWall(player_pos_x - player_dir_x * move_speed, player_pos_y))
             player_pos_x -= player_dir_x * move_speed;
-        if (!layout->coordsInsideWall(start_ppx, player_pos_y - player_dir_y * move_speed))
+        if (!layout.tileIsWall(start_ppx, player_pos_y - player_dir_y * move_speed))
             player_pos_y -= player_dir_y * move_speed;
     }
 
@@ -232,9 +212,9 @@ void App::updateData() {
             state->kbd_input_mgr.isPressed(KEY_RIGHTALT)) {
             // alt + left arrow key: move left (strafe)
             double start_ppx { player_pos_x };
-            if (!layout->coordsInsideWall(player_pos_x - player_dir_y * move_speed, player_pos_y))
+            if (!layout.tileIsWall(player_pos_x - player_dir_y * move_speed, player_pos_y))
                 player_pos_x -= player_dir_y * move_speed;
-            if (!layout->coordsInsideWall(start_ppx, player_pos_y + player_dir_x * move_speed))
+            if (!layout.tileIsWall(start_ppx, player_pos_y + player_dir_x * move_speed))
                 player_pos_y += player_dir_x * move_speed;
         } else {
             // left arrow key: rotate left (CCW)
@@ -248,9 +228,9 @@ void App::updateData() {
             state->kbd_input_mgr.isPressed(KEY_RIGHTALT)) {
             // alt + right arrow key: move right (strafe)
             double start_ppx { player_pos_x };
-            if (!layout->coordsInsideWall(player_pos_x + player_dir_y * move_speed, player_pos_y))
+            if (!layout.tileIsWall(player_pos_x + player_dir_y * move_speed, player_pos_y))
                 player_pos_x += player_dir_y * move_speed;
-            if (!layout->coordsInsideWall(start_ppx, player_pos_y - player_dir_x * move_speed))
+            if (!layout.tileIsWall(start_ppx, player_pos_y - player_dir_x * move_speed))
                 player_pos_y -= player_dir_x * move_speed;
         } else {
             // right arrow key: roatate right (CW)
@@ -350,7 +330,7 @@ static FovRay castRay(const uint16_t screen_x, const uint16_t screen_w,
     // perform DDA algo, or the incremental casting of the ray
     // moves to a new map unit square every loop, as directed by map_step values
     // TBD: does orientation need to be set every loop?
-    for (const Layout* layout { state->layout }; !layout->coordsInsideWall(map_x, map_y); ) {
+    for (const Layout& layout { state->layout }; !layout.tileIsWall(map_x, map_y); ) {
         if (dist_next_unit_x < dist_next_unit_y) {
             dist_next_unit_x += dist_per_unit_x;
             map_x += map_step_x;
@@ -483,7 +463,7 @@ void App::renderMap() {
     uint16_t player_y ( state->player_pos(1) );
     uint16_t map_delta_y ( state->map_h / 2 );
     uint16_t map_delta_x ( state->map_w / 2 );
-    Layout* layout { state->layout };
+    Layout& layout { state->layout };
     for (int16_t map_y ( player_y + map_delta_y );
          map_y >= player_y - map_delta_y; --map_y, ++display_row) {
         line.clear();
@@ -491,12 +471,12 @@ void App::renderMap() {
         for (int16_t map_x ( player_x - map_delta_x );
              map_x <= player_x + map_delta_x; ++map_x) {
             if (map_x < 0 || map_y < 0 ||
-                map_x >= static_cast<int16_t>(layout->cols) ||
-                map_y >= static_cast<int16_t>(layout->rows) ||
-                layout->map[map_y][map_x] == 0) {
+                map_x >= static_cast<int16_t>(layout.w) ||
+                map_y >= static_cast<int16_t>(layout.h) ||
+                layout.tileData(map_x, map_y) == 0) {
                 line.push_back(' ');
             } else {
-                line.push_back(layout->map[map_y][map_x] + '0');
+                line.push_back(layout.tileData(map_x, map_y) + '0');
             }
         }
         line.push_back(' ');  // right border

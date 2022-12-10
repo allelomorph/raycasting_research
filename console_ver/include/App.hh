@@ -66,7 +66,7 @@ public:
 class App {
 public:
     App() = delete;
-    App(const char* exec_filename, const char* map_filename);
+    App(const char* exec_filename, const std::string& map_filename);
     // TBD: rule of 5?
     ~App();
 
@@ -77,7 +77,6 @@ private:
     State<LinuxKbdInputMgr>* state;
 
     std::string exec_filename;
-    // TBD: could be member of Layout
     std::string map_filename;
 
     ProcessTimeFpsCalc pt_fps_calc;
@@ -85,6 +84,7 @@ private:
 
     // TBD: establish minimum viable display dimensions in chars (original was 1080 x 640px in SDL)
 
+    // TBD: TtyDisplayMgr should contain display_tty_name
     // TBD: initially only supporting ASCII art
     //std::vector<RgbColor> screen_buffer;
     //std::string screen_buffer;

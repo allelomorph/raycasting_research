@@ -4,7 +4,7 @@
 #include "State.hh"
 #include "FpsCalc.hh"
 #include "LinuxKbdInputMgr.hh"
-#include "SdlKbdInputMgr.hh"
+//#include "SdlKbdInputMgr.hh"
 
 #include <csignal>               // sig_atomic_t
 #include <cstdint>               // uint16_t
@@ -16,13 +16,6 @@
 
 extern volatile std::sig_atomic_t sigint_sigterm_received;
 extern volatile std::sig_atomic_t sigwinch_received;
-
-// TBD: should RGBA support be added? Will determine once SDL textures are implemented
-struct RgbColor {
-    uint8_t r;
-    uint8_t g;
-    uint8_t b;
-};
 
 class ASCIIScreenBuffer : public std::string {
 public:
@@ -74,7 +67,7 @@ public:
 private:
     // TBD: no longer singleton pattern, change from pointer after delegating
     //   tasks in initialize()
-    State<LinuxKbdInputMgr>* state;
+    State* state;
 
     std::string exec_filename;
     std::string map_filename;

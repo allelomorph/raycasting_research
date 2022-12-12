@@ -1,7 +1,7 @@
 #include "App.hh"
 #include "Matrix.hh"         // Matrix2d Vector2d
 #include "safeCExec.hh"      // C_*
-#include "XtermCodes.hh"     // CursorUp
+#include "Xterm.hh"          // CtrlSeqs
 
 #include <time.h>            // clock clock_t CLOCKS_PER_SEC
 #include <csignal>           // sigaction SIG* sig_atomic_t
@@ -21,7 +21,7 @@
 
 
 App::App(const char* efn, const std::string& mfn) :
-    state(new State<LinuxKbdInputMgr>),
+    state(new State),
     exec_filename(efn), map_filename(mfn) {
 }
 
@@ -65,6 +65,7 @@ void App::initialize() {
         ++(state->map_h);
     state->map_w = (state->map_h * 2) + 1;
 
+    // TBD: only do this in tty mode
     struct sigaction sa;
     sa.sa_handler = sigint_sigterm_handler;
     safeCExec(sigaction, "sigaction", C_RETURN_TEST(int, (ret == -1)),
@@ -82,8 +83,8 @@ void App::initialize() {
     for (uint16_t y {0}; y < screen_buffer.h; ++y) {
         std::cout << std::string(screen_buffer.w, ' ') << '\n';
     }
-    std::cout << XtermCodes::CursorHome() << XtermCodes::EraseLinesBelow() <<
-        XtermCodes::HideCursor();
+    std::cout << Xterm::CtrlSeqs::CursorHome() << Xterm::CtrlSeqs::EraseLinesBelow() <<
+        Xterm::CtrlSeqs::HideCursor();
 }
 
 void App::run() {
@@ -99,8 +100,8 @@ void App::run() {
 
         if (sigwinch_received) {
             // terminal window size changes require rehiding the cursor
-            std::cout << XtermCodes::CursorHome() << XtermCodes::EraseLinesBelow() <<
-                XtermCodes::HideCursor();
+            std::cout << Xterm::CtrlSeqs::CursorHome() << Xterm::CtrlSeqs::EraseLinesBelow() <<
+                Xterm::CtrlSeqs::HideCursor();
             struct winsize winsz;
             safeCExec(ioctl, "ioctl", C_RETURN_TEST(int, (ret == -1)),
                       0/*STDIN_FILENO*/, TIOCGWINSZ, &winsz);
@@ -128,12 +129,12 @@ void App::run() {
     // erases last frame printed to terminal
     // TBD: make into function?
     std::cout <<
-        XtermCodes::CursorHome() << XtermCodes::EraseLinesBelow() <<
-        XtermCodes::ShowCursor();
+        Xterm::CtrlSeqs::CursorHome() << Xterm::CtrlSeqs::EraseLinesBelow() <<
+        Xterm::CtrlSeqs::ShowCursor();
 }
 
 void App::getEvents() {
-    state->kbd_input_mgr.consumeKeyEvents();
+    state->kbd_input_mgr->consumeKeyEvents();
 }
 
 // TBD: make member function in Matrix.hh?
@@ -156,16 +157,16 @@ static Vector2d rotateVector2d(const Vector2d& vec, const double radians) {
 
 void App::updateData() {
     // ctrl+c: simulate SIGINT (quit)
-    if ((state->kbd_input_mgr.isPressed(KEY_LEFTCTRL) ||
-         state->kbd_input_mgr.isPressed(KEY_RIGHTCTRL)) &&
-        state->kbd_input_mgr.isPressed(KEY_C)) {
+    if ((state->kbd_input_mgr->isPressed(KEY_LEFTCTRL) ||
+         state->kbd_input_mgr->isPressed(KEY_RIGHTCTRL)) &&
+        state->kbd_input_mgr->isPressed(KEY_C)) {
         state->stop = true;
         return;
     }
 
     // q or escape keys: quit
-    if (state->kbd_input_mgr.isPressed(KEY_Q) ||
-        state->kbd_input_mgr.isPressed(KEY_ESC)) {
+    if (state->kbd_input_mgr->isPressed(KEY_Q) ||
+        state->kbd_input_mgr->isPressed(KEY_ESC)) {
         state->stop = true;
         return;
     }
@@ -183,14 +184,14 @@ void App::updateData() {
     //   printed map all represent moving north
 
     // shift key: run
-    if (state->kbd_input_mgr.isPressed(KEY_LEFTSHIFT) ||
-        state->kbd_input_mgr.isPressed(KEY_RIGHTSHIFT)) {
+    if (state->kbd_input_mgr->isPressed(KEY_LEFTSHIFT) ||
+        state->kbd_input_mgr->isPressed(KEY_RIGHTSHIFT)) {
         move_speed *= 2;
         rot_speed *= 2;
     }
 
     // up arrow key: move forward
-    if (state->kbd_input_mgr.isPressed(KEY_UP)) {
+    if (state->kbd_input_mgr->isPressed(KEY_UP)) {
         double start_ppx { player_pos_x };
         if (!layout.tileIsWall(player_pos_x + player_dir_x * move_speed, player_pos_y))
             player_pos_x += player_dir_x * move_speed;
@@ -199,7 +200,7 @@ void App::updateData() {
     }
 
     // down arrow key: move backward
-    if (state->kbd_input_mgr.isPressed(KEY_DOWN)) {
+    if (state->kbd_input_mgr->isPressed(KEY_DOWN)) {
         double start_ppx { player_pos_x };
         if (!layout.tileIsWall(player_pos_x - player_dir_x * move_speed, player_pos_y))
             player_pos_x -= player_dir_x * move_speed;
@@ -207,9 +208,9 @@ void App::updateData() {
             player_pos_y -= player_dir_y * move_speed;
     }
 
-    if (state->kbd_input_mgr.isPressed(KEY_LEFT)) {
-        if (state->kbd_input_mgr.isPressed(KEY_LEFTALT) ||
-            state->kbd_input_mgr.isPressed(KEY_RIGHTALT)) {
+    if (state->kbd_input_mgr->isPressed(KEY_LEFT)) {
+        if (state->kbd_input_mgr->isPressed(KEY_LEFTALT) ||
+            state->kbd_input_mgr->isPressed(KEY_RIGHTALT)) {
             // alt + left arrow key: move left (strafe)
             double start_ppx { player_pos_x };
             if (!layout.tileIsWall(player_pos_x - player_dir_y * move_speed, player_pos_y))
@@ -223,9 +224,9 @@ void App::updateData() {
         }
     }
 
-    if (state->kbd_input_mgr.isPressed(KEY_RIGHT)) {
-        if (state->kbd_input_mgr.isPressed(KEY_LEFTALT) ||
-            state->kbd_input_mgr.isPressed(KEY_RIGHTALT)) {
+    if (state->kbd_input_mgr->isPressed(KEY_RIGHT)) {
+        if (state->kbd_input_mgr->isPressed(KEY_LEFTALT) ||
+            state->kbd_input_mgr->isPressed(KEY_RIGHTALT)) {
             // alt + right arrow key: move right (strafe)
             double start_ppx { player_pos_x };
             if (!layout.tileIsWall(player_pos_x + player_dir_y * move_speed, player_pos_y))
@@ -240,22 +241,22 @@ void App::updateData() {
     }
 
     // F1 key: toggle FPS overlay
-    if (state->kbd_input_mgr.keyDownThisFrame(KEY_F1))
+    if (state->kbd_input_mgr->keyDownThisFrame(KEY_F1))
         state->show_fps = !state->show_fps;
 
     // F2 key: toggle map overlay
-    if (state->kbd_input_mgr.keyDownThisFrame(KEY_F2))
+    if (state->kbd_input_mgr->keyDownThisFrame(KEY_F2))
         state->show_map = !state->show_map;
 
     // F3 key: toggle debug mode
-    if (state->kbd_input_mgr.keyDownThisFrame(KEY_F3))
+    if (state->kbd_input_mgr->keyDownThisFrame(KEY_F3))
         state->debug_mode = !state->debug_mode;
 
     // F4 key: toggle fisheye camera mode
-    if (state->kbd_input_mgr.keyDownThisFrame(KEY_F4))
+    if (state->kbd_input_mgr->keyDownThisFrame(KEY_F4))
         state->fisheye = !state->fisheye;
 
-    state->kbd_input_mgr.decayToAutorepeat();
+    state->kbd_input_mgr->decayToAutorepeat();
 }
 
 enum class WallOrientation { EW, NS };
@@ -271,7 +272,7 @@ struct FovRay {
  */
 // TBD: make compatible with templated State
 static FovRay castRay(const uint16_t screen_x, const uint16_t screen_w,
-                      State<LinuxKbdInputMgr>* state) {
+                      State* state) {
 
     // TBD: move camera_x calc outside function, to renderView loop?
     // x coordinate in the camera plane represented by the current
@@ -284,7 +285,6 @@ static FovRay castRay(const uint16_t screen_x, const uint16_t screen_w,
     // ray origin is player_pos
     // multiply camera_plane vector by scalar x, then add to direction vector
     //   to get ray direction
-    // TBD: const palyer_dir or view_plane as this discards qualifiers
     ray.dir = state->player_dir + (state->view_plane * camera_x);
 
     // current map grid coordinates of ray
@@ -405,25 +405,6 @@ static void renderPixelColumn(const uint16_t screen_x,
         screen_buffer.charAtCoords(screen_x, screen_y) = ' ';
 }
 
-/*
-//dummy fill of buffer while testing renderMap and renderHUD
-void App:renderTestChase() {
-    static uint16_t chase_x { 2 };
-    if (chase_x >= screen_buffer.w)
-        chase_x = 2;
-    for (auto& c : screen_buffer)
-        c = ' ';
-    static constexpr char row_labels[] { "0123456789ABCDEFGHIKLMNOPQRSTUVWXYZ"
-            "abcdefghijklmnopqrstuvwxyz" };
-    for (uint16_t y {0}; y < screen_buffer.h && !sigwinch_received; ++y) {
-        screen_buffer.charAtCoords(0, y) = row_labels[y];
-        screen_buffer.charAtCoords(1, y) = ' ';
-        screen_buffer.charAtCoords(chase_x, y) = '|';
-    }
-    ++chase_x;
-}
-*/
-
 void App::renderView() {
     // raycasting loop: one column of pixels (screen coordinates) per pass
     for (uint16_t screen_x { 0 }; screen_x < screen_buffer.w; ++screen_x) {
@@ -432,7 +413,6 @@ void App::renderView() {
     }
 }
 
-
 // https://stackoverflow.com/questions/6247153/angle-from-2d-unit-vector
 constexpr inline double radiansToDegrees(const double radians) {
     return radians * (180 / M_PI);
@@ -440,10 +420,10 @@ constexpr inline double radiansToDegrees(const double radians) {
 
 double vectorAngle(const Vector2d& vec) {
     double angle { radiansToDegrees(std::atan(vec(1) / vec(0))) };
-    if (vec(0) < 0) // quadrant II or III
-         angle = 180 + angle; // subtracts
-    else if (vec(1) < 0) // quadrant IV
-         angle = 270 + (90 + angle); // subtracts
+    if (vec(0) < 0)  // quadrant II or III
+         angle = 180 + angle;  // subtracts
+    else if (vec(1) < 0)  // quadrant IV
+         angle = 270 + (90 + angle);  // subtracts
     return angle;
 }
 
@@ -587,23 +567,23 @@ void App::renderHUD() {
         screen_buffer.replaceAtCoords(replace_col, 7,
                                       hud_line_sz, hud_line);
         std::sprintf(hud_line, "      down: %i right: %i up: %i left: %i",
-                     kbd_input_mgr.isPressed(KEY_DOWN), kbd_input_mgr.isPressed(KEY_RIGHT),
-                     kbd_input_mgr.isPressed(KEY_UP), kbd_input_mgr.isPressed(KEY_LEFT));
+                     kbd_input_mgr->isPressed(KEY_DOWN), kbd_input_mgr->isPressed(KEY_RIGHT),
+                     kbd_input_mgr->isPressed(KEY_UP), kbd_input_mgr->isPressed(KEY_LEFT));
         screen_buffer.replaceAtCoords(replace_col, 8,
                                       hud_line_sz, hud_line);
         std::sprintf(hud_line, "                           a: %i d: %i",
-                     kbd_input_mgr.isPressed(KEY_A), kbd_input_mgr.isPressed(KEY_D));
+                     kbd_input_mgr->isPressed(KEY_A), kbd_input_mgr->isPressed(KEY_D));
         screen_buffer.replaceAtCoords(replace_col, 9,
                                       hud_line_sz, hud_line);
         std::sprintf(hud_line, "                      p: %i m: %i f: %i",
-                     kbd_input_mgr.isPressed(KEY_P), kbd_input_mgr.isPressed(KEY_M),
-                     kbd_input_mgr.isPressed(KEY_F));
+                     kbd_input_mgr->isPressed(KEY_P), kbd_input_mgr->isPressed(KEY_M),
+                     kbd_input_mgr->isPressed(KEY_F));
         screen_buffer.replaceAtCoords(replace_col, 10,
                                       hud_line_sz, hud_line);
         std::sprintf(hud_line, "       Lctrl: %i Rctrl: %i c: %i esc: %i",
-                     kbd_input_mgr.isPressed(KEY_LEFTCTRL),
-                     kbd_input_mgr.isPressed(KEY_RIGHTCTRL),
-                     kbd_input_mgr.isPressed(KEY_C), kbd_input_mgr.isPressed(KEY_ESC));
+                     kbd_input_mgr->isPressed(KEY_LEFTCTRL),
+                     kbd_input_mgr->isPressed(KEY_RIGHTCTRL),
+                     kbd_input_mgr->isPressed(KEY_C), kbd_input_mgr->isPressed(KEY_ESC));
         screen_buffer.replaceAtCoords(replace_col, 11,
                                       hud_line_sz, hud_line);
         double player_dir_len { std::sqrt(
@@ -649,5 +629,5 @@ void App::drawScreen() {
     // newline in last row would scroll screen up
     std::cout << screen_buffer.row(last_row);
 
-    std::cout << XtermCodes::CursorHome();
+    std::cout << Xterm::CtrlSeqs::CursorHome();
 }

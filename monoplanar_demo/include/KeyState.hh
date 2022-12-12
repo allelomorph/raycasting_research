@@ -1,11 +1,15 @@
 #ifndef KEYSTATE_HH
 #define KEYSTATE_HH
 
+#include <cstdint>              // int32_t
 
-#include <SDL2/SDL_keycode.h>  // SDL_Keycode
 
-#include <cstdint>              // uint16_t
-
+// See linux/input.h for struct input_event
+// See SDL2/SDL_events.h for SDL_RELEASED and SDL_PRESSED
+enum KeyValue { Release,       // input_event.value release,    SDL_RELEASED
+                Press,         // input_event.value press,      SDL_PRESSED
+                Autorepeat };  // input_event.value autorepeat,
+                               //   (SDL uses SDL_KeyboardEvent.repeat as separate flag)
 
 class KeyState {
 protected:
@@ -13,7 +17,25 @@ protected:
     bool repeat  { false };  // key down event was in earlier frame
 
 public:
-    // KeyState() needed in calls to child class constructors
+    // input_event.code (__u16) or SDL_keycode (Sint32)
+    // (SDL_keycode enum range may not require a 4-byte int, but also uses
+    //   bitmask SDLK_SCANCODE_MASK (1<<30), so we keep it 4 bytes)
+    int32_t code;
+
+    // KeyState() only needed if map operator[] called with missing key,
+    //   which should not happen, so deleting it acts like an assert
+    KeyState() = delete;
+    KeyState(const int32_t c) : code(c) {};
+
+    // input_event.value (__s32) or SDL_KeyboardEvent.state (Uint8)
+    // int size throttled to 1 byte due to only handling KeyValue values
+    // Not typing state as KeyValue to allow implicit conversion from __s32
+    void update(const uint8_t state) {
+        if (state < KeyValue::Autorepeat) {
+            repeat = false;
+            pressed = static_cast<bool>(state);
+        }
+    }
 
     inline bool keyDownThisFrame() {
         return (pressed && !repeat);
@@ -35,47 +57,6 @@ public:
     inline void decayToAutorepeat() {
         if (pressed)
             repeat = true;
-    }
-};
-
-// input_event.code is __u16 in /linux/input.h, should be KEY_*, see /linux/input-event-codes.h
-using LinuxKeyCode = uint16_t;
-// input_event.value is __s32 in /linux/input.h
-enum class LinuxKeyValue { Release, Press, Autorepeat };
-
-class LinuxKeyState : public KeyState {
-public:
-    LinuxKeyCode code;
-
-    // LinuxKeyState() only needed if map operator[] called with missing key,
-    //   which should not happen, so deleting it acts like an assert
-    LinuxKeyState() = delete;
-    LinuxKeyState(const LinuxKeyCode c) : code(c) {};
-
-    inline void update(const LinuxKeyValue value) {
-        if (value < LinuxKeyValue::Autorepeat) {
-            repeat = false;
-            pressed = static_cast<bool>(value);
-        }
-    }
-};
-
-class SdlKeyState : public KeyState {
-public:
-    SDL_Keycode code;
-
-    // SdlKeyState() only needed if map operator[] called with missing key,
-    //   which should not happen, so deleting it acts like an assert
-    SdlKeyState() = delete;
-    SdlKeyState(const SDL_Keycode c) : code(c) {};
-
-    // SDL_KeyboardEvent.state (SDL Uint8 equivalent to uint8_t)
-    // SDL_RELEASED or SDL_PRESSED, from SDL2/SDL_events.h
-    inline void update(const Uint8 value) {
-        if (value < 2) {
-            repeat = false;
-            pressed = static_cast<bool>(value);
-        }
     }
 };
 

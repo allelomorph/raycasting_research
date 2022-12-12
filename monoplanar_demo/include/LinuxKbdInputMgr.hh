@@ -1,21 +1,16 @@
 #ifndef LINUXKBDINPUTMGR_HH
 #define LINUXKBDINPUTMGR_HH
 
+#include "KbdInputMgr.hh"
 
-#include "KeyState.hh"
-
-#include <cstdint>         // uint16_t
-#include <ctime>           // timeval
+#include <sys/select.h>    // fd_set (timeval via time_t.h)
 #include <linux/input.h>   // input_event
 
-#include <unordered_map>
 #include <string>
 
 
-class LinuxKbdInputMgr {
+class LinuxKbdInputMgr : public KbdInputMgr {
 private:
-    std::unordered_map<LinuxKeyCode, LinuxKeyState> key_states;
-
     std::string input_tty_name;
     std::string kbd_device_path;
 
@@ -47,21 +42,22 @@ private:
     std::string determineInputTty();
 
 public:
-    LinuxKbdInputMgr();
+    LinuxKbdInputMgr() = delete;
+    LinuxKbdInputMgr(const std::string& exec_filename);
     ~LinuxKbdInputMgr();
 
-    void initialize(const std::string& exec_filename);
-
+    // See notes on consume key functions in parent class
     void consumeKeyEvents();
 
-    bool keyDownThisFrame(const LinuxKeyCode keysym);
-    bool isPressed(const LinuxKeyCode keysym);
-    bool isReleased(const LinuxKeyCode keysym);
+    bool keyDownThisFrame(const int32_t code);
+    bool isPressed(const int32_t code);
+    bool isReleased(const int32_t code);
+
     // Game frames may pass between consuming a key press event and its first
     //   autorepeat event; so to maintain the distinction between a key being
     //   pressed and a key being held down at frame granularity, this can be
-    //   used to mark any keys pressed this frame as held (repeat) at the end
-    //   of that frame
+    //   used to mark any keys pressed this frame as held (repeating) at the
+    //   end of that frame
     void decayToAutorepeat();
 };
 

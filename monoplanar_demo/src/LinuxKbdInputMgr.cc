@@ -1,14 +1,14 @@
 #include "LinuxKbdInputMgr.hh"
 #include "safeCExec.hh"
 
-#include <linux/input.h>   // input_event EV_* KEY_*
-#include <sys/ioctl.h>     // ioctl EVIOCGRAB
-#include <unistd.h>        // getpid ttyname read close
-#include <utmp.h>          // utmp setutent getutent endutent USER_PROCESS
-#include <sys/select.h>    // FD_ZERO FD_SET
 #include <sys/types.h>     // open pid_t
 #include <sys/stat.h>      // open
 #include <fcntl.h>         // open
+#include <sys/ioctl.h>     // ioctl EVIOCGRAB
+#include <linux/input.h>   // input_event EV_* KEY_*
+#include <unistd.h>        // getpid ttyname read close
+#include <utmp.h>          // utmp setutent getutent endutent USER_PROCESS
+#include <sys/select.h>    // FD_ZERO FD_SET
 
 #include <cstdlib>         // atoi exit getenv
 #include <cctype>          // isdigit tolower
@@ -24,30 +24,6 @@
 //   in namespace scope
 constexpr char LinuxKbdInputMgr::INPUT_EVENT_PATH_PREFIX[];
 constexpr char LinuxKbdInputMgr::INPUT_DEVICES_PATH[];
-
-void LinuxKbdInputMgr::ungrabDevice() {
-    if (kbd_device_fd != UNINITIALIZED_FD) {
-        safeCExec(ioctl, "ioctl", C_RETURN_TEST(int, (ret == -1)),
-                  kbd_device_fd, EVIOCGRAB, (void*)0);
-        safeCExec(close, "close", C_RETURN_TEST(int, (ret == -1)),
-                  kbd_device_fd);
-        std::ofstream ofs;
-        ofs.open(input_tty_name);
-        if (ofs.is_open()) {
-            // generate ungrab message
-            static constexpr uint16_t msg_width { 100 };
-            static const std::string msg_border ( msg_width, '*' );
-            static constexpr char msg_line_1_prefix[] { "Process " };
-            static constexpr char msg_line_1_suffix[] { " is no longer grabbing keyboard events." };
-            ofs << '\n';
-            ofs << msg_border << '\n';
-            ofs << '\t' << msg_line_1_prefix << static_cast<int>(getpid()) <<
-                msg_line_1_suffix << '\n';
-            ofs << msg_border << '\n';
-            ofs.close();
-        }
-    }
-}
 
 void LinuxKbdInputMgr::grabDevice(const std::string& exec_filename) {
     kbd_device_fd = safeCExec(open, "open", C_RETURN_TEST(int, (ret == -1)),
@@ -80,30 +56,28 @@ void LinuxKbdInputMgr::grabDevice(const std::string& exec_filename) {
     }
 }
 
-LinuxKbdInputMgr::LinuxKbdInputMgr() {
-    key_states = std::unordered_map<LinuxKeyCode, LinuxKeyState> {
-        { KEY_LEFT,       LinuxKeyState (KEY_LEFT       ) },
-        { KEY_UP,         LinuxKeyState (KEY_UP         ) },
-        { KEY_RIGHT,      LinuxKeyState (KEY_RIGHT      ) },
-        { KEY_DOWN,       LinuxKeyState (KEY_DOWN       ) },
-        { KEY_C,          LinuxKeyState (KEY_C          ) },
-        { KEY_F1,         LinuxKeyState (KEY_F1         ) },
-        { KEY_F2,         LinuxKeyState (KEY_F2         ) },
-        { KEY_F3,         LinuxKeyState (KEY_F3         ) },
-        { KEY_F4,         LinuxKeyState (KEY_F4         ) },
-        { KEY_F5,         LinuxKeyState (KEY_F5         ) },
-        { KEY_LEFTSHIFT,  LinuxKeyState (KEY_LEFTSHIFT  ) },
-        { KEY_RIGHTSHIFT, LinuxKeyState (KEY_RIGHTSHIFT ) },
-        { KEY_LEFTCTRL,   LinuxKeyState (KEY_LEFTCTRL   ) },
-        { KEY_RIGHTCTRL,  LinuxKeyState (KEY_RIGHTCTRL  ) },
-        { KEY_LEFTALT,    LinuxKeyState (KEY_LEFTALT    ) },
-        { KEY_RIGHTALT,   LinuxKeyState (KEY_RIGHTALT   ) },
-        { KEY_ESC,        LinuxKeyState (KEY_ESC        ) }
-    };
-}
-
-LinuxKbdInputMgr::~LinuxKbdInputMgr() {
-    ungrabDevice();
+void LinuxKbdInputMgr::ungrabDevice() {
+    if (kbd_device_fd != UNINITIALIZED_FD) {
+        safeCExec(ioctl, "ioctl", C_RETURN_TEST(int, (ret == -1)),
+                  kbd_device_fd, EVIOCGRAB, (void*)0);
+        safeCExec(close, "close", C_RETURN_TEST(int, (ret == -1)),
+                  kbd_device_fd);
+        std::ofstream ofs;
+        ofs.open(input_tty_name);
+        if (ofs.is_open()) {
+            // generate ungrab message
+            static constexpr uint16_t msg_width { 100 };
+            static const std::string msg_border ( msg_width, '*' );
+            static constexpr char msg_line_1_prefix[] { "Process " };
+            static constexpr char msg_line_1_suffix[] { " is no longer grabbing keyboard events." };
+            ofs << '\n';
+            ofs << msg_border << '\n';
+            ofs << '\t' << msg_line_1_prefix << static_cast<int>(getpid()) <<
+                msg_line_1_suffix << '\n';
+            ofs << msg_border << '\n';
+            ofs.close();
+        }
+    }
 }
 
 // inspired by https://github.com/kernc/logkeys/blob/master/src/logkeys.cc
@@ -271,19 +245,41 @@ std::string LinuxKbdInputMgr::determineInputTty() {
     return candidate_tty_name;
 }
 
-void LinuxKbdInputMgr::initialize(const std::string& exec_filename) {
+LinuxKbdInputMgr::LinuxKbdInputMgr(const std::string& exec_filename) {
+    key_states = std::unordered_map<int32_t, KeyState> {
+        { KEY_LEFT,       KeyState (KEY_LEFT       ) },
+        { KEY_UP,         KeyState (KEY_UP         ) },
+        { KEY_RIGHT,      KeyState (KEY_RIGHT      ) },
+        { KEY_DOWN,       KeyState (KEY_DOWN       ) },
+        { KEY_C,          KeyState (KEY_C          ) },
+        { KEY_F1,         KeyState (KEY_F1         ) },
+        { KEY_F2,         KeyState (KEY_F2         ) },
+        { KEY_F3,         KeyState (KEY_F3         ) },
+        { KEY_F4,         KeyState (KEY_F4         ) },
+        { KEY_F5,         KeyState (KEY_F5         ) },
+        { KEY_LEFTSHIFT,  KeyState (KEY_LEFTSHIFT  ) },
+        { KEY_RIGHTSHIFT, KeyState (KEY_RIGHTSHIFT ) },
+        { KEY_LEFTCTRL,   KeyState (KEY_LEFTCTRL   ) },
+        { KEY_RIGHTCTRL,  KeyState (KEY_RIGHTCTRL  ) },
+        { KEY_LEFTALT,    KeyState (KEY_LEFTALT    ) },
+        { KEY_RIGHTALT,   KeyState (KEY_RIGHTALT   ) },
+        { KEY_ESC,        KeyState (KEY_ESC        ) }
+    };
+
     kbd_device_path = determineInputDevice();
     std::cout << "Selected keyboard device path: " << kbd_device_path << '\n';
 
     input_tty_name = determineInputTty();
     std::cout << "Terminal focus for input: " << input_tty_name << "\n";
-    // TBD: move this to DisplayMgr
-    //std::cout << "Terminal output sent to: " << display_tty_name << "\n";
 
     grabDevice(exec_filename);
 
     // init fd_set used by select(2) in consumeKeyEvents
     FD_ZERO(&rdfds);
+}
+
+LinuxKbdInputMgr::~LinuxKbdInputMgr() {
+    ungrabDevice();
 }
 
 void LinuxKbdInputMgr::consumeKeyEvents() {
@@ -316,11 +312,11 @@ void LinuxKbdInputMgr::consumeKeyEvents() {
             continue;
         auto ks_it { key_states.find(ev[i].code) };
         if (ks_it != key_states.end())  // supported key
-            ks_it->second.update(static_cast<LinuxKeyValue>(ev[i].value));
+            ks_it->second.update(ev[i].value);  // should be in KeyValue range
     }
 }
 
-bool LinuxKbdInputMgr::keyDownThisFrame(const LinuxKeyCode keysym) {
+bool LinuxKbdInputMgr::keyDownThisFrame(const int32_t keysym) {
     // remember that operator[] inserts a new key if not found
     auto ks_it { key_states.find(keysym) };
     if (ks_it != key_states.end())
@@ -328,7 +324,7 @@ bool LinuxKbdInputMgr::keyDownThisFrame(const LinuxKeyCode keysym) {
     return false;
 }
 
-bool LinuxKbdInputMgr::isPressed(const LinuxKeyCode keysym) {
+bool LinuxKbdInputMgr::isPressed(const int32_t keysym) {
     // remember that operator[] inserts a new key if not found
     auto ks_it { key_states.find(keysym) };
     if (ks_it != key_states.end())
@@ -336,7 +332,7 @@ bool LinuxKbdInputMgr::isPressed(const LinuxKeyCode keysym) {
     return false;
 }
 
-bool LinuxKbdInputMgr::isReleased(const LinuxKeyCode keysym) {
+bool LinuxKbdInputMgr::isReleased(const int32_t keysym) {
     // remember that operator[] inserts a new key if not found
     auto ks_it { key_states.find(keysym) };
     if (ks_it != key_states.end())

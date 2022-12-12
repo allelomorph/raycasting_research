@@ -3,16 +3,13 @@
 
 #include "Layout.hh"
 #include "LinuxKbdInputMgr.hh"
-#include "SdlKbdInputMgr.hh"
+//#include "SdlKbdInputMgr.hh"
 #include "Matrix.hh"             // Vector2d
 
+#include <memory>                // unique_ptr
 
-template <typename KbdInputMgrType>
+
 class State {
-    static_assert(std::is_same<KbdInputMgrType, LinuxKbdInputMgr>::value ||
-                  std::is_same<KbdInputMgrType, SdlKbdInputMgr>::value,
-                  "Incompatible type for State::kbd_input_mgr");
-
 public:
     // Each instance of State should only be attached to an instance of App, so
     //   we prohibit the default definitions of its copy and move operations:
@@ -60,7 +57,8 @@ public:
     /*
      * user input
      */
-    KbdInputMgrType kbd_input_mgr;
+    // pointer for polymorphism with Linux and SDL mode child classes
+    std::unique_ptr<KbdInputMgr> kbd_input_mgr { nullptr };
 
     /*
      * raycasting
@@ -89,7 +87,9 @@ public:
         // parse map file to get maze and starting actor positions
         layout.loadMapFile(map_filename, player_pos);
 
-        kbd_input_mgr.initialize(exec_filename);
+        // TBD: add test for SDL or TTY mode
+        kbd_input_mgr = std::unique_ptr<LinuxKbdInputMgr>(
+            new LinuxKbdInputMgr(exec_filename));
 
         // Starting direction vector is a bit longer than the camera plane, so
         //   the FOV will be smaller than 90° (more precisely, the FOV is

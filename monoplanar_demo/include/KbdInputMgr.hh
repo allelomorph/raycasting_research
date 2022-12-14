@@ -15,6 +15,8 @@ protected:
     std::unordered_map<int32_t, KeyState> key_states;
 
 public:
+    virtual ~KbdInputMgr() {}
+
     // TBD: Having both consume event functions here is an unresolved
     //   design problem in trying to make a shared interface for both
     //   SDL and Linux keyboard events. Currently handled by having empty

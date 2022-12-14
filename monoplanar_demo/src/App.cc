@@ -1,7 +1,9 @@
-#include "App.hh"
+#include "App.hh"            // FovRay WallOrientation TBD: move both to RaycastEngine
 #include "Matrix.hh"         // Matrix2d Vector2d
 #include "safeCExec.hh"      // C_*
 #include "Xterm.hh"          // CtrlSeqs
+#include "LinuxKbdInputMgr.hh"
+//#include "SdlKbdInputMgr.hh"
 
 #include <time.h>            // clock clock_t CLOCKS_PER_SEC
 #include <csignal>           // sigaction SIG* sig_atomic_t
@@ -21,14 +23,7 @@
 
 
 App::App(const char* efn, const std::string& mfn) :
-    state(new State),
-    exec_filename(efn), map_filename(mfn) {
-}
-
-App::~App() {
-    if (state != nullptr)
-        delete state;
-}
+    exec_filename(efn), map_filename(mfn) {}
 
 // Need to be global to be visible to sigaction
 volatile std::sig_atomic_t sigint_sigterm_received = 0;
@@ -44,10 +39,15 @@ static void sigwinch_handler(int /*signal*/) {
 }
 
 void App::initialize() {
-    state->initialize(exec_filename, map_filename);
-
     pt_fps_calc.initialize();
     rt_fps_calc.initialize();
+
+    // TBD: add test for SDL or TTY mode
+    kbd_input_mgr = std::unique_ptr<LinuxKbdInputMgr>(
+        new LinuxKbdInputMgr(exec_filename));
+
+    // parse map file to get maze and starting actor positions
+    layout.loadMapFile(map_filename, raycast_engine.player_pos);
 
     // TBD: move to DisplayMgr
     // get terminal window size in chars
@@ -59,11 +59,13 @@ void App::initialize() {
     // TBD: shade only for testing map and hud
     screen_buffer.resizeToDims(winsz.ws_col, winsz.ws_row);
 
+    raycast_engine.updateScreenSize(screen_buffer.w);
+
     // TBD: move to DisplayMgr
-    state->map_h = screen_buffer.h * state->map_proportion;
-    if (state->map_h % 2 == 0)
-        ++(state->map_h);
-    state->map_w = (state->map_h * 2) + 1;
+    settings.map_h = screen_buffer.h * settings.map_proportion;
+    if (settings.map_h % 2 == 0)
+        ++(settings.map_h);
+    settings.map_w = (settings.map_h * 2) + 1;
 
     // TBD: only do this in tty mode
     struct sigaction sa;
@@ -91,7 +93,7 @@ void App::run() {
     initialize();
 
     // TBD: better consolidate these two tests
-    while(!sigint_sigterm_received && !state->stop) {
+    while(!sigint_sigterm_received && !stop) {
         pt_fps_calc.calculate();
         rt_fps_calc.calculate();
 
@@ -107,10 +109,12 @@ void App::run() {
                       0/*STDIN_FILENO*/, TIOCGWINSZ, &winsz);
             screen_buffer.resizeToDims(winsz.ws_col, winsz.ws_row);
 
-            state->map_h = screen_buffer.h * state->map_proportion;
-            if (state->map_h % 2 == 0)
-                ++(state->map_h);
-            state->map_w = (state->map_h * 2) + 1;
+            raycast_engine.updateScreenSize(screen_buffer.w);
+
+            settings.map_h = screen_buffer.h * settings.map_proportion;
+            if (settings.map_h % 2 == 0)
+                ++(settings.map_h);
+            settings.map_w = (settings.map_h * 2) + 1;
 
             sigwinch_received = 0;
         }
@@ -134,10 +138,10 @@ void App::run() {
 }
 
 void App::getEvents() {
-    state->kbd_input_mgr->consumeKeyEvents();
+    kbd_input_mgr->consumeKeyEvents();
 }
 
-// TBD: make member function in Matrix.hh?
+// TBD: make member function in Matrix, or RaycastEngine?
 // rotate Vector counterclockwise around origin
 static Vector2d rotateVector2d(const Vector2d& vec, const double radians) {
 /*
@@ -157,41 +161,40 @@ static Vector2d rotateVector2d(const Vector2d& vec, const double radians) {
 
 void App::updateData() {
     // ctrl+c: simulate SIGINT (quit)
-    if ((state->kbd_input_mgr->isPressed(KEY_LEFTCTRL) ||
-         state->kbd_input_mgr->isPressed(KEY_RIGHTCTRL)) &&
-        state->kbd_input_mgr->isPressed(KEY_C)) {
-        state->stop = true;
+    if ((kbd_input_mgr->isPressed(KEY_LEFTCTRL) ||
+         kbd_input_mgr->isPressed(KEY_RIGHTCTRL)) &&
+        kbd_input_mgr->isPressed(KEY_C)) {
+        stop = true;
         return;
     }
 
     // q or escape keys: quit
-    if (state->kbd_input_mgr->isPressed(KEY_Q) ||
-        state->kbd_input_mgr->isPressed(KEY_ESC)) {
-        state->stop = true;
+    if (kbd_input_mgr->isPressed(KEY_Q) ||
+        kbd_input_mgr->isPressed(KEY_ESC)) {
+        stop = true;
         return;
     }
 
-    double move_speed { pt_fps_calc.frame_duration_mvg_avg * state->base_movement_rate };
+    double move_speed { pt_fps_calc.frame_duration_mvg_avg * settings.base_movement_rate };
     double rot_speed  { pt_fps_calc.frame_duration_mvg_avg *
-                        state->base_movement_rate * state->turn_rate };
-    Layout& layout { state->layout };
-    double& player_dir_x { state->player_dir(0) };
-    double& player_dir_y { state->player_dir(1) };
-    double& player_pos_x { state->player_pos(0) };
-    double& player_pos_y { state->player_pos(1) };
+                        settings.base_movement_rate * settings.turn_rate };
+    double& player_dir_x { raycast_engine.player_dir(0) };
+    double& player_dir_y { raycast_engine.player_dir(1) };
+    double& player_pos_x { raycast_engine.player_pos(0) };
+    double& player_pos_y { raycast_engine.player_pos(1) };
 
     // Movement in the 2d map grid has been set up so +y/+i with map[i][j]/up on a
     //   printed map all represent moving north
 
     // shift key: run
-    if (state->kbd_input_mgr->isPressed(KEY_LEFTSHIFT) ||
-        state->kbd_input_mgr->isPressed(KEY_RIGHTSHIFT)) {
+    if (kbd_input_mgr->isPressed(KEY_LEFTSHIFT) ||
+        kbd_input_mgr->isPressed(KEY_RIGHTSHIFT)) {
         move_speed *= 2;
         rot_speed *= 2;
     }
 
     // up arrow key: move forward
-    if (state->kbd_input_mgr->isPressed(KEY_UP)) {
+    if (kbd_input_mgr->isPressed(KEY_UP)) {
         double start_ppx { player_pos_x };
         if (!layout.tileIsWall(player_pos_x + player_dir_x * move_speed, player_pos_y))
             player_pos_x += player_dir_x * move_speed;
@@ -200,7 +203,7 @@ void App::updateData() {
     }
 
     // down arrow key: move backward
-    if (state->kbd_input_mgr->isPressed(KEY_DOWN)) {
+    if (kbd_input_mgr->isPressed(KEY_DOWN)) {
         double start_ppx { player_pos_x };
         if (!layout.tileIsWall(player_pos_x - player_dir_x * move_speed, player_pos_y))
             player_pos_x -= player_dir_x * move_speed;
@@ -208,9 +211,9 @@ void App::updateData() {
             player_pos_y -= player_dir_y * move_speed;
     }
 
-    if (state->kbd_input_mgr->isPressed(KEY_LEFT)) {
-        if (state->kbd_input_mgr->isPressed(KEY_LEFTALT) ||
-            state->kbd_input_mgr->isPressed(KEY_RIGHTALT)) {
+    if (kbd_input_mgr->isPressed(KEY_LEFT)) {
+        if (kbd_input_mgr->isPressed(KEY_LEFTALT) ||
+            kbd_input_mgr->isPressed(KEY_RIGHTALT)) {
             // alt + left arrow key: move left (strafe)
             double start_ppx { player_pos_x };
             if (!layout.tileIsWall(player_pos_x - player_dir_y * move_speed, player_pos_y))
@@ -219,14 +222,14 @@ void App::updateData() {
                 player_pos_y += player_dir_x * move_speed;
         } else {
             // left arrow key: rotate left (CCW)
-            state->player_dir = rotateVector2d(state->player_dir, rot_speed);
-            state->view_plane = rotateVector2d(state->view_plane, rot_speed);
+            raycast_engine.player_dir = rotateVector2d(raycast_engine.player_dir, rot_speed);
+            raycast_engine.view_plane = rotateVector2d(raycast_engine.view_plane, rot_speed);
         }
     }
 
-    if (state->kbd_input_mgr->isPressed(KEY_RIGHT)) {
-        if (state->kbd_input_mgr->isPressed(KEY_LEFTALT) ||
-            state->kbd_input_mgr->isPressed(KEY_RIGHTALT)) {
+    if (kbd_input_mgr->isPressed(KEY_RIGHT)) {
+        if (kbd_input_mgr->isPressed(KEY_LEFTALT) ||
+            kbd_input_mgr->isPressed(KEY_RIGHTALT)) {
             // alt + right arrow key: move right (strafe)
             double start_ppx { player_pos_x };
             if (!layout.tileIsWall(player_pos_x + player_dir_y * move_speed, player_pos_y))
@@ -235,146 +238,30 @@ void App::updateData() {
                 player_pos_y -= player_dir_x * move_speed;
         } else {
             // right arrow key: roatate right (CW)
-            state->player_dir = rotateVector2d(state->player_dir, -rot_speed);
-            state->view_plane = rotateVector2d(state->view_plane, -rot_speed);
+            raycast_engine.player_dir = rotateVector2d(raycast_engine.player_dir, -rot_speed);
+            raycast_engine.view_plane = rotateVector2d(raycast_engine.view_plane, -rot_speed);
         }
     }
 
     // F1 key: toggle FPS overlay
-    if (state->kbd_input_mgr->keyDownThisFrame(KEY_F1))
-        state->show_fps = !state->show_fps;
+    if (kbd_input_mgr->keyDownThisFrame(KEY_F1))
+        settings.show_fps = !settings.show_fps;
 
     // F2 key: toggle map overlay
-    if (state->kbd_input_mgr->keyDownThisFrame(KEY_F2))
-        state->show_map = !state->show_map;
+    if (kbd_input_mgr->keyDownThisFrame(KEY_F2))
+        settings.show_map = !settings.show_map;
 
     // F3 key: toggle debug mode
-    if (state->kbd_input_mgr->keyDownThisFrame(KEY_F3))
-        state->debug_mode = !state->debug_mode;
+    if (kbd_input_mgr->keyDownThisFrame(KEY_F3))
+        settings.debug_mode = !settings.debug_mode;
 
     // F4 key: toggle fisheye camera mode
-    if (state->kbd_input_mgr->keyDownThisFrame(KEY_F4))
-        state->fisheye = !state->fisheye;
+    if (kbd_input_mgr->keyDownThisFrame(KEY_F4))
+        settings.fisheye = !settings.fisheye;
 
-    state->kbd_input_mgr->decayToAutorepeat();
+    kbd_input_mgr->decayToAutorepeat();
 }
 
-enum class WallOrientation { EW, NS };
-
-struct FovRay {
-    Vector2d        dir;              // ray direction
-    double          wall_dist;        // distance to first wall collision
-    WallOrientation type_wall_hit;    // NS or EW alignment of wall hit
-};
-
-/*
- * calculate ray position and direction
- */
-// TBD: make compatible with templated State
-static FovRay castRay(const uint16_t screen_x, const uint16_t screen_w,
-                      State* state) {
-
-    // TBD: move camera_x calc outside function, to renderView loop?
-    // x coordinate in the camera plane represented by the current
-    //   screen x coordinate, calculated so that the left edge of the
-    //   camera plane is -1.0, center 0.0, and right edge is 1.0
-    double camera_x { 2 * screen_x / double(screen_w) - 1 };
-
-    FovRay ray;
-
-    // ray origin is player_pos
-    // multiply camera_plane vector by scalar x, then add to direction vector
-    //   to get ray direction
-    ray.dir = state->player_dir + (state->view_plane * camera_x);
-
-    // current map grid coordinates of ray
-    uint16_t map_x ( state->player_pos(0) );
-    uint16_t map_y ( state->player_pos(1) );
-
-    // Initially the distances from the ray origin (player position) to its
-    //   first intersections with a map unit grid vertical and horizonal,
-    //   respectively. These map grid lines, or integer values of x and y,
-    //   serve to represent wall boundaries when they border a grid square
-    //   designated as a wall.
-    double dist_next_unit_x;
-    double dist_next_unit_y;
-
-    // distances the ray has to travel to go from one unit grid vertical
-    //   to the next, or one horizontal to the next, respectively
-    // IEEE 754 floating point values in C++ protect against division by 0
-    double dist_per_unit_x { std::abs(1 / ray.dir(0)) };
-    double dist_per_unit_y { std::abs(1 / ray.dir(1)) };
-
-    // DDA algorithm will always jump exactly one map grid square each
-    //   loop, either in the x or y. These vars record those increments,
-    //   either -1 or +1
-    int8_t map_step_x;
-    int8_t map_step_y;
-
-    // setup map grid step and initial ray distance to next grid unit values
-    if (ray.dir(0) < 0) {
-        map_step_x = -1;
-        dist_next_unit_x = (state->player_pos(0) - map_x) * dist_per_unit_x;
-    } else {
-        map_step_x = 1;
-        dist_next_unit_x = (map_x + 1.0 - state->player_pos(0)) * dist_per_unit_x;
-    }
-    if (ray.dir(1) < 0) {
-        map_step_y = -1;
-        dist_next_unit_y = (state->player_pos(1) - map_y) * dist_per_unit_y;
-    } else {
-        map_step_y = 1;
-        dist_next_unit_y = (map_y + 1.0 - state->player_pos(1)) * dist_per_unit_y;
-    }
-
-    // perform DDA algo, or the incremental casting of the ray
-    // moves to a new map unit square every loop, as directed by map_step values
-    // TBD: does orientation need to be set every loop?
-    for (const Layout& layout { state->layout }; !layout.tileIsWall(map_x, map_y); ) {
-        if (dist_next_unit_x < dist_next_unit_y) {
-            dist_next_unit_x += dist_per_unit_x;
-            map_x += map_step_x;
-            ray.type_wall_hit = WallOrientation::EW;
-        } else {
-            dist_next_unit_y += dist_per_unit_y;
-            map_y += map_step_y;
-            ray.type_wall_hit = WallOrientation::NS;
-        }
-        // TBD: what about OneLoneCoder's max cast distance?
-    }
-
-    // Calculate distance to wall hit from camera plane, moving
-    //   perpendicular to the camera plane. If the actual length of the
-    //   ray cast from player to wall were used, the result would be
-    //   a fisheye effect. For example, if the player were squarely
-    //   facing a wall (wall parallel to camera plane,) in the resulting
-    //   render the wall should appear of even height. If using the
-    //   length of the rays as they hit the wall, the wall would instead
-    //   appear to taper to the left and right ends of the display.
-    //
-    // One way to calculate the perpendicular camera plane distance would be
-    //   to use the formula for shortest distance from a point to a line,
-    //   where the point is where the wall was hit, and the line is the
-    //   camera plane.
-    // TBD: evaluate and corroborate this last paragraph
-    // However, it can be done more simply: due to how dist_per_unit_? and
-    //   dist_next_unit_? were scaled by a factor of |ray.dir| above, the
-    //   length of dist_next_unit_? already almost equals the perpendicular
-    //   camera plane distance. We just need to subtract dist_per_unit_? once,
-    //   going one step back in the casting, as in the DDA loop above we went
-    //   one step further to end up inside the wall.
-
-    // TBD: double check these
-    if (state->fisheye) {  // Euclidean ray distance from player_pos
-        ray.wall_dist = (ray.type_wall_hit == WallOrientation::EW) ?
-            dist_next_unit_x : dist_next_unit_y;
-    } else {                // perpendicular distance from camera plane
-        ray.wall_dist = (ray.type_wall_hit == WallOrientation::EW) ?
-            dist_next_unit_x - dist_per_unit_x :
-            dist_next_unit_y - dist_per_unit_y;
-    }
-    return ray;
-}
 
 static void renderPixelColumn(const uint16_t screen_x,
                               ASCIIScreenBuffer& screen_buffer, const FovRay& ray) {
@@ -408,7 +295,7 @@ static void renderPixelColumn(const uint16_t screen_x,
 void App::renderView() {
     // raycasting loop: one column of pixels (screen coordinates) per pass
     for (uint16_t screen_x { 0 }; screen_x < screen_buffer.w; ++screen_x) {
-        FovRay ray { castRay(screen_x, screen_buffer.w, state) };
+        FovRay ray { raycast_engine.castRay(screen_x, layout, settings) };
         renderPixelColumn(screen_x, screen_buffer, ray);
     }
 }
@@ -428,22 +315,21 @@ double vectorAngle(const Vector2d& vec) {
 }
 
 void App::renderMap() {
-    // assert(state->map_dims % 2);
-    if (!state->show_map || state->map_h < 5 || state->map_w >= screen_buffer.w)
+    // assert(settings.map_dims % 2);
+    if (!settings.show_map || settings.map_h < 5 || settings.map_w >= screen_buffer.w)
         return;
     std::string line;
     uint16_t display_row { 0 };
-    uint16_t bordered_map_w ( state->map_w + 2 );
+    uint16_t bordered_map_w ( settings.map_w + 2 );
     // top border
     line.resize(bordered_map_w, ' ');
     screen_buffer.replaceAtCoords(0, display_row, bordered_map_w,
                                   line.c_str());
     ++display_row;
-    uint16_t player_x ( state->player_pos(0) );
-    uint16_t player_y ( state->player_pos(1) );
-    uint16_t map_delta_y ( state->map_h / 2 );
-    uint16_t map_delta_x ( state->map_w / 2 );
-    Layout& layout { state->layout };
+    uint16_t player_x ( raycast_engine.player_pos(0) );
+    uint16_t player_y ( raycast_engine.player_pos(1) );
+    uint16_t map_delta_y ( settings.map_h / 2 );
+    uint16_t map_delta_x ( settings.map_w / 2 );
     for (int16_t map_y ( player_y + map_delta_y );
          map_y >= player_y - map_delta_y; --map_y, ++display_row) {
         line.clear();
@@ -462,7 +348,7 @@ void App::renderMap() {
         line.push_back(' ');  // right border
         if (map_y == player_y) {
             char player_icon;
-            double player_dir_angle { vectorAngle(state->player_dir) };
+            double player_dir_angle { vectorAngle(raycast_engine.player_dir) };
             if (player_dir_angle < 22.5)
                 player_icon = '~';
             else if (player_dir_angle < 67.5)
@@ -519,7 +405,7 @@ void App::renderHUD() {
     char hud_line[50] { '\0' };
     auto hud_line_sz { std::strlen(hud_line) };
     uint16_t replace_col;
-    if (state->show_fps || state->debug_mode) {
+    if (settings.show_fps || settings.debug_mode) {
         // dddd.dd format with no negative values
         std::sprintf(hud_line, " PTFPS: %7.2f  RTFPS: %7.2f",
                      (1 / pt_fps_calc.frame_duration_mvg_avg),
@@ -536,9 +422,9 @@ void App::renderHUD() {
                                       hud_line_sz, hud_line);
     }
 
-    if (state->debug_mode && screen_buffer.h >= 13) {
+    if (settings.debug_mode && screen_buffer.h >= 13) {
         std::sprintf(hud_line, "     stop: %i show_fps: %i show_map: %i",
-                     state->stop, state->show_fps, state->show_map);
+                     stop, settings.show_fps, settings.show_map);
         hud_line_sz = std::strlen(hud_line);
         // also right justified (all lines should be left padded to equal length)
         replace_col = screen_buffer.w - hud_line_sz;
@@ -546,15 +432,15 @@ void App::renderHUD() {
         screen_buffer.replaceAtCoords(replace_col, 2,
                                       hud_line_sz, hud_line);
         std::sprintf(hud_line, "    player_pos: {%8.3f, %8.3f}",
-                     state->player_pos(0), state->player_pos(1));
+                     raycast_engine.player_pos(0), raycast_engine.player_pos(1));
         screen_buffer.replaceAtCoords(replace_col, 3,
                                       hud_line_sz, hud_line);
         std::sprintf(hud_line, "    player_dir: {%8.3f, %8.3f}",
-                     state->player_dir(0), state->player_dir(1));
+                     raycast_engine.player_dir(0), raycast_engine.player_dir(1));
         screen_buffer.replaceAtCoords(replace_col, 4,
                                       hud_line_sz, hud_line);
         std::sprintf(hud_line, "    view_plane: {%8.3f, %8.3f}",
-                     state->view_plane(0), state->view_plane(1));
+                     raycast_engine.view_plane(0), raycast_engine.view_plane(1));
         screen_buffer.replaceAtCoords(replace_col, 5,
                                       hud_line_sz, hud_line);
         std::sprintf(hud_line, "           window size: %3u h %4u w",
@@ -562,7 +448,6 @@ void App::renderHUD() {
         screen_buffer.replaceAtCoords(replace_col, 6,
                                       hud_line_sz, hud_line);
 
-        auto& kbd_input_mgr { state->kbd_input_mgr };
         std::sprintf(hud_line, "                    user input keys:");
         screen_buffer.replaceAtCoords(replace_col, 7,
                                       hud_line_sz, hud_line);
@@ -587,15 +472,15 @@ void App::renderHUD() {
         screen_buffer.replaceAtCoords(replace_col, 11,
                                       hud_line_sz, hud_line);
         double player_dir_len { std::sqrt(
-                state->player_dir(0) * state->player_dir(0) +
-                state->player_dir(1) * state->player_dir(1)) };
+                raycast_engine.player_dir(0) * raycast_engine.player_dir(0) +
+                raycast_engine.player_dir(1) * raycast_engine.player_dir(1)) };
         std::sprintf(hud_line, "      player_dir magnitude: %8.3f",
                      player_dir_len);
         screen_buffer.replaceAtCoords(replace_col, 12,
                                       hud_line_sz, hud_line);
         double view_plane_len { std::sqrt(
-                state->view_plane(0) * state->view_plane(0) +
-                state->view_plane(1) * state->view_plane(1)) };
+                raycast_engine.view_plane(0) * raycast_engine.view_plane(0) +
+                raycast_engine.view_plane(1) * raycast_engine.view_plane(1)) };
         std::sprintf(hud_line, "      view_plane magnitude: %8.3f",
                      view_plane_len);
         screen_buffer.replaceAtCoords(replace_col, 13,
@@ -605,7 +490,7 @@ void App::renderHUD() {
         screen_buffer.replaceAtCoords(replace_col, 14,
                                       hud_line_sz, hud_line);
         std::sprintf(hud_line, "   player dir angle from +x: %7.2f",
-                     vectorAngle(state->player_dir) );
+                     vectorAngle(raycast_engine.player_dir) );
         screen_buffer.replaceAtCoords(replace_col, 15,
                                       hud_line_sz, hud_line);
 

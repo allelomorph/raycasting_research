@@ -4,8 +4,9 @@
 #include "FpsCalc.hh"
 #include "Settings.hh"
 #include "KbdInputMgr.hh"
-#include "Layout.hh"
 #include "DdaRaycastEngine.hh"
+// #include "DisplayMgr.hh"
+#include "TtyDisplayMgr.hh"
 
 #include <csignal>               // sig_atomic_t
 #include <cstdint>               // uint16_t
@@ -19,49 +20,11 @@
 extern volatile std::sig_atomic_t sigint_sigterm_received;
 extern volatile std::sig_atomic_t sigwinch_received;
 
-class ASCIIScreenBuffer : public std::string {
-public:
-    uint16_t w;
-    uint16_t h;
-
-    void resizeToDims(const uint16_t _w, const uint16_t _h) {
-        w = _w;
-        h = _h;
-        resize(w * h);
-    }
-
-    void resizeToDims(const uint16_t _w, const uint16_t _h, const char c) {
-        w = _w;
-        h = _h;
-        resize(w * h, c);
-    }
-
-    // char* ptrToCoords(const uint16_t col_i, const uint16_t row_i) {
-    //     assert(col_i < w && row_i < h);
-    //     return data() + ((row_i * w) + col_i);
-    // }
-
-    char& charAtCoords(const uint16_t col_i, const uint16_t row_i) {
-        assert(col_i < w && row_i < h);
-        return (*this)[(row_i * w) + col_i];
-    }
-
-    void replaceAtCoords(const uint16_t col_i, const uint16_t row_i,
-                         const uint16_t len, const char* s) {
-        assert(col_i < w && row_i < h);
-        replace((row_i * w) + col_i, len, s);
-    }
-
-    std::string row(const uint16_t row_i) {
-        assert(row_i < h);
-        return substr(row_i * w, w);
-    }
-};
-
 class App {
 public:
     App() = delete;
-    App(const char* exec_filename, const std::string& map_filename);
+    App(const char* efn, const std::string& mfn) :
+        exec_filename(efn), map_filename(mfn) {}
 
     void run();
 
@@ -71,57 +34,37 @@ private:
 
     // operation flags
     //
-    // bool tty_mode { true };
-    bool stop   { false };
-    //bool pause  { false };
+    bool tty_mode { true };
+    bool stop     { false };
+    bool pause    { false };
 
     // frame timing
     //
-    ProcessTimeFpsCalc pt_fps_calc;
-    RealTimeFpsCalc    rt_fps_calc;
+    ProcessTimeFpsCalc           pt_fps_calc;
+    RealTimeFpsCalc              rt_fps_calc;
 
     // user-adjustable game settings
     //
-    Settings settings;
+    Settings                     settings;
 
     // user input
     //
     // pointer for polymorphism with Linux and SDL mode child classes
     std::unique_ptr<KbdInputMgr> kbd_input_mgr { nullptr };
 
-    // stage map
-    //
-    // 2D grid representing top down view of play area (with starting positions
-    //   of actors)
-    // TBD: move to RaycastEngine?
-    Layout layout;
-
     // raycasting
     //
-    DdaRaycastEngine raycast_engine;
-
-    // TBD: establish minimum viable display dimensions in chars (original was 1080 x 640px in SDL)
+    DdaRaycastEngine             raycast_engine;
 
     // display
     //
-    // TBD: TtyDisplayMgr should contain display_tty_name
-    // TBD: initially only supporting ASCII art
-    //std::vector<RgbColor> screen_buffer;
-    //std::string screen_buffer;
-    ASCIIScreenBuffer screen_buffer;
+    TtyDisplayMgr                display_mgr;
 
     void initialize();
 
     void getEvents();
-    // TBD: move to State::updateFromInput(frame_duration_mvg_avg)?
-    void updateData();
-
-    void renderView();
-    void renderMap();
-    void renderHUD();
-
-    // TBD: drawFrame instead?
-    void drawScreen();
+    void updateState();
 };
+
 
 #endif  // APP_HH

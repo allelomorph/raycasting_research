@@ -28,6 +28,8 @@ private:
         WallOrientation algnmt;           // EW or NS alignment of wall hit
         uint16_t        map_x   { 0 };    // wall map tile x
         uint16_t        map_y   { 0 };    // wall map tile y
+        // (really all that's needed to draw the wall strip is distance, alignment,
+        //    texture_x, and texture_key/index)
     };
 public:
     Vector2d            dir;              // ray direction
@@ -36,6 +38,11 @@ public:
 */
 
 class DdaRaycastEngine {
+private:
+    // TBD: better as member of Matrix?
+    // rotate Vector counterclockwise around origin
+    Vector2d rotateVector2d(const Vector2d& vec, const double radians);
+
 public:
     // position vector (player x and y coordinates on map grid)
     Vector2d player_pos;
@@ -57,21 +64,27 @@ public:
     Vector2d view_plane;
 
     uint16_t screen_w;
-
-    // std::vector<FovRay> fov_rays;
-
     // float fov_angle;
+    std::vector<FovRay> fov_rays;
 
-    // TBD: store layout here? (updateData still needs access for movement)
+    Layout layout;
 
     DdaRaycastEngine();
 
     void updateScreenSize(const uint16_t w);
+    inline void loadMapFile(const std::string& map_filename) {
+        layout.loadMapFile(map_filename, player_pos);
+    }
 
-    FovRay castRay(const uint16_t screen_x, const Layout& layout,
-                   const Settings& settings);
+    void castRay(const uint16_t screen_x, const Settings& settings);
+    void castRays(const Settings& settings);
 
-    // void castRays(const Settings& settings);
+    void playerTurnLeft(const double rot_speed);
+    void playerTurnRight(const double rot_speed);
+    void playerStrafeLeft(const double move_speed);
+    void playerStrafeRight(const double move_speed);
+    void playerMoveFwd(const double move_speed);
+    void playerMoveBack(const double move_speed);
 };
 
 

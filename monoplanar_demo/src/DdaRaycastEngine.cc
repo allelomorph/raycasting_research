@@ -1,5 +1,24 @@
 #include "DdaRaycastEngine.hh"
 
+#include <cstdint>
+
+
+Vector2d DdaRaycastEngine::rotateVector2d(const Vector2d& vec,
+                                          const double radians) {
+    /*
+      Matrix2d rotate;
+      rotate <<
+          std::cos(rot_speed), -std::sin(rot_speed),
+          std::sin(rot_speed), std::cos(rot_speed);
+      return (rotate * vector);
+    */
+    // TBD: currently using manual transposition of vector rotation formula;
+    //   debug the above rotation matrix population order
+    return Vector2d {
+        std::cos(radians) * vec(0) - std::sin(radians) * vec(1),
+        std::sin(radians) * vec(0) + std::cos(radians) * vec(1)
+    };
+}
 
 DdaRaycastEngine::DdaRaycastEngine() {
     // Starting direction vector is a bit longer than the camera plane, so
@@ -14,18 +33,18 @@ DdaRaycastEngine::DdaRaycastEngine() {
 
 void DdaRaycastEngine::updateScreenSize(const uint16_t w) {
     screen_w = w;
-    // fov_rays.resize(screen_w);
+    fov_rays.resize(screen_w);
 }
 
 // TBD: make layout member of engine?
-FovRay DdaRaycastEngine::castRay(const uint16_t screen_x, const Layout& layout,
+void DdaRaycastEngine::castRay(const uint16_t screen_x,
                                  const Settings& settings) {
     // x coordinate in the camera plane represented by the current
     //   screen x coordinate, calculated so that the left edge of the
     //   camera plane is -1.0, center 0.0, and right edge is 1.0
     double camera_x { 2 * screen_x / double(screen_w) - 1 };
 
-    FovRay ray;
+    FovRay& ray { fov_rays[screen_x] };
 
     // ray origin is player_pos
     // multiply camera_plane vector by scalar x, then add to direction vector
@@ -121,14 +140,56 @@ FovRay DdaRaycastEngine::castRay(const uint16_t screen_x, const Layout& layout,
             dist_next_unit_x - dist_per_unit_x :
             dist_next_unit_y - dist_per_unit_y;
     }
-
-    return ray;
 }
 
-/*
 void DdaRaycastEngine::castRays(const Settings& settings) {
     for (uint16_t screen_x { 0 }; screen_x < screen_w; ++screen_x) {
         castRay(screen_x, settings);
     }
 }
-*/
+
+// CCW
+void DdaRaycastEngine::playerTurnLeft(const double rot_speed) {
+    player_dir = rotateVector2d(player_dir, rot_speed);
+    view_plane = rotateVector2d(view_plane, rot_speed);
+}
+
+// CW
+void DdaRaycastEngine::playerTurnRight(const double rot_speed) {
+    player_dir = rotateVector2d(player_dir, -rot_speed);
+    view_plane = rotateVector2d(view_plane, -rot_speed);
+}
+
+// Vector2d is { x, y }
+void DdaRaycastEngine::playerStrafeLeft(const double move_speed) {
+    double start_ppx { player_pos(0) };
+    if (!layout.tileIsWall(player_pos(0) - player_dir(1) * move_speed, player_pos(1)))
+        player_pos(0) -= player_dir(1) * move_speed;
+    if (!layout.tileIsWall(start_ppx, player_pos(1) + player_dir(0) * move_speed))
+        player_pos(1) += player_dir(0) * move_speed;
+}
+
+void DdaRaycastEngine::playerStrafeRight(const double move_speed) {
+    double start_ppx { player_pos(0) };
+    if (!layout.tileIsWall(player_pos(0) + player_dir(1) * move_speed, player_pos(1)))
+        player_pos(0) += player_dir(1) * move_speed;
+    if (!layout.tileIsWall(start_ppx, player_pos(1) - player_dir(0) * move_speed))
+        player_pos(1) -= player_dir(0) * move_speed;
+}
+
+// Vector2d is { x, y }
+void DdaRaycastEngine::playerMoveFwd(const double move_speed) {
+    double start_ppx { player_pos(0) };
+    if (!layout.tileIsWall(player_pos(0) + player_dir(0) * move_speed, player_pos(1)))
+        player_pos(0) += player_dir(0) * move_speed;
+    if (!layout.tileIsWall(start_ppx, player_pos(1) + player_dir(1) * move_speed))
+        player_pos(1) += player_dir(1) * move_speed;
+}
+
+void DdaRaycastEngine::playerMoveBack(const double move_speed) {
+    double start_ppx { player_pos(0) };
+    if (!layout.tileIsWall(player_pos(0) - player_dir(0) * move_speed, player_pos(1)))
+        player_pos(0) -= player_dir(0) * move_speed;
+    if (!layout.tileIsWall(start_ppx, player_pos(1) - player_dir(1) * move_speed))
+        player_pos(1) -= player_dir(1) * move_speed;
+}

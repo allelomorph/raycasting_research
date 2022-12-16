@@ -1,0 +1,67 @@
+#ifndef SDLAUDIOMGR_HH
+#define SDLAUDIOMGR_HH
+
+#include <SDL2/SDL_mixer.h>  // Mix_*
+
+#include <memory>            // unique_ptr
+
+
+// TBD: use safeSdlExec as much as possible
+
+
+namespace SdlDeleter {
+
+struct MixMusic {
+    void operator()(Mix_Music* mp) const { if (mp != nullptr) Mix_FreeMusic(mp); }
+};
+
+}  // namespace SdlDeleter
+
+class SdlAudioMgr {
+private:
+    // functors for SDL struct pointer deallocations
+    const SdlDeleter::MixMusic mix_music_deleter;
+
+    using SdlMixMusicUnqPtr = std::unique_ptr<Mix_Music, SdlDeleter::MixMusic>;
+
+    SdlMixMusicUnqPtr stage_bgm (nullptr, mix_music_deleter);
+
+public:
+    SdlAudioMgr() {
+        Mix_Init(MIX_INIT_WAVPACK);                         // load libraries
+        // implicitly calls Mix_Init
+        // TBD: also look at Mix_OpenAudioDevice to explicitly choose WAV files
+        Mix_OpenAudio(22050, MIX_DEFAULT_FORMAT, 2, 4096);  // open device
+    }
+
+    ~SdlAudioMgr() {
+        Mix_HaltMusic();
+        Mix_CloseAudio();  // close device
+        Mix_Quit();        // unload libraries
+    }
+
+    void loadBgm() {
+        stage_bgm = SdlMixMusicUnqPtr(Mix_LoadMUS("../audio/Game_of_Thrones.wav"),
+                                      mix_music_deleter);
+    }
+
+    // TBD: determine channel number for BGM operations
+    void fadeInBgm() {
+        Mix_FadeInMusic(stage_bgm.get(), -1, 3000);
+    }
+
+    void pauseBgm() {
+        Mix_PauseMusic();
+    }
+
+    void unpauseBgm() {
+        Mix_ResumeMusic();
+    }
+
+    void stopBgm() {
+        Mix_HaltMusic();
+    }
+};
+
+
+#endif  // SDLAUDIOMGR_HH

@@ -1,0 +1,41 @@
+#ifndef DISPLAYMGR_HH
+#define DISPLAYMGR_HH
+
+#include "Settings.hh"
+#include "DdaRaycastEngine.hh"  // FovRay
+#include "KbdInputMgr.hh"
+
+#include <cstdint>
+
+#include <vector>
+
+
+class DisplayMgr {
+protected:
+    uint16_t minimap_w;
+    uint16_t minimap_h;
+
+    virtual void renderPixelColumn(const uint16_t screen_x, const FovRay& ray) = 0;
+
+public:
+    virtual void initialize() = 0;
+
+    virtual void fitToWindow(const double map_proportion) = 0;
+
+    virtual void clearDisplay() {}
+
+    virtual void renderView(const std::vector<FovRay>& fov_rays) = 0;
+
+    virtual void renderMap(const DdaRaycastEngine& raycast_engine) = 0;
+
+    virtual void renderHUD(const double pt_frame_duration_mvg_avg,
+                           const double rt_frame_duration_mvg_avg,
+                           const Settings& settings,
+                           const DdaRaycastEngine& raycast_engine,
+                           const KbdInputMgr* kbd_input_mgr) = 0;
+
+    virtual void drawScreen() = 0;
+};
+
+
+#endif  // DISPLAYMGR_HH

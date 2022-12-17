@@ -89,15 +89,15 @@ void TtyDisplayMgr::renderPixelColumn(const uint16_t screen_x,
     uint16_t screen_y;
     // draw ceiling
     for (screen_y = 0; screen_y < ceiling_screen_y; ++screen_y)
-        screen_buffer.pixelChar(screen_x, screen_y) = ' ';
+        screen_buffer.pixel(screen_x, screen_y).c = ' ';
     // draw wall, shading NS walls darker to differentiate
     for (; screen_y <= floor_screen_y; ++screen_y) {
-        screen_buffer.pixelChar(screen_x, screen_y) =
+        screen_buffer.pixel(screen_x, screen_y).c =
             (ray.type_wall_hit == WallOrientation::EW) ? '@' : '|';
     }
     // draw floor
     for (; screen_y < screen_buffer.h; ++screen_y)
-        screen_buffer.pixelChar(screen_x, screen_y) = ' ';
+        screen_buffer.pixel(screen_x, screen_y).c = ' ';
 }
 
 void TtyDisplayMgr::renderView(const std::vector<FovRay>& fov_rays) {
@@ -267,25 +267,42 @@ void TtyDisplayMgr::renderHUD(const double pt_frame_duration_mvg_avg,
 }
 
 void TtyDisplayMgr::drawScreen() {
-    // TBD: add test for ascii/256/TC modes
-    // subtraction implicitly converts to int
     assert(screen_buffer.h > 0);
-    std::ostringstream frame_oss;
+    std::ostringstream oss;
+    TtyPixel px;
+    // subtraction implicitly converts to int
     uint16_t last_row_i ( screen_buffer.h - 1 );
     for (uint16_t row_i { 0 }; row_i < last_row_i; ++row_i) {
-        for (auto it { screen_buffer.rowBegin(row_i) },
-                 end_it { screen_buffer.rowEnd(row_i) }; it != end_it; ++it) {
-            frame_oss << it->c;
+        for (uint16_t col_i { 0 }; col_i < screen_buffer.w; ++col_i) {
+            px = screen_buffer.pixel(col_i, row_i);
+/*
+            if (mode is 256 color) {
+                oss << Xterm::CtrlSeqs::CharBgColor(px.code);
+            }
+            if (mode is true color) {
+                oss << Xterm::CtrlSeqs::CharBgColor(px.r, px.g, px.b);
+            }
+*/
+            oss << px.c;
         }
-        frame_oss << '\n';
+        oss << '\n';
     }
     // TBD: last line could instead be used for notifications and collecting
     //   user text input, eg loading a new map file
     // newline in last row would scroll screen up
-    for (auto it { screen_buffer.rowBegin(last_row_i) },
-             end_it { screen_buffer.rowEnd(last_row_i) }; it != end_it; ++it)
-        frame_oss << it->c;
+    for (uint16_t col_i { 0 }; col_i < screen_buffer.w; ++col_i) {
+            px = screen_buffer.pixel(col_i, last_row_i);
+/*
+            if (mode is 256 color) {
+                oss << Xterm::CtrlSeqs::CharBgColor(px.code);
+            }
+            if (mode is true color) {
+                oss << Xterm::CtrlSeqs::CharBgColor(px.r, px.g, px.b);
+            }
+*/
+            oss << px.c;
+    }
 
-    std::cout << frame_oss.str();
+    std::cout << oss.str();
     std::cout << Xterm::CtrlSeqs::CursorHome();
 }

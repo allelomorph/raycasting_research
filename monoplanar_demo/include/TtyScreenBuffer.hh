@@ -23,13 +23,12 @@ struct TtyPixel : public BgColorData {
 class TtyScreenBuffer {
 private:
     std::vector<TtyPixel> pixels;
-    // using tty_pixel_it_type = decltype(pixels.begin());
 
 public:
     uint16_t w;  // columns
     uint16_t h;  // rows
 
-    using tty_pixel_it_type = decltype(pixels.begin());
+    using pixel_iter_type = decltype(pixels.begin());
 
     // adjusting to terminal resize
     void resize(const uint16_t _w, const uint16_t _h);
@@ -41,8 +40,8 @@ public:
     uint8_t&  pixelColorCode(const uint16_t col_i, const uint16_t row_i);
 
     // iterators to rows (when printing buffer to terminal)
-    tty_pixel_it_type rowBegin(const uint16_t row_i);
-    tty_pixel_it_type rowEnd(const uint16_t row_i);
+    pixel_iter_type rowBegin(const uint16_t row_i);
+    pixel_iter_type rowEnd(const uint16_t row_i);
 
     // horizontally fills in pixel chars, used to render minimap and HUD
     void pixelCharReplace(const uint16_t col_i, const uint16_t row_i,

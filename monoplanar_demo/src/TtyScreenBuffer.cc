@@ -33,16 +33,14 @@ uint8_t& TtyScreenBuffer::pixelColorCode(const uint16_t col_i,
     return pixels[(row_i * w) + col_i].code;
 }
 
-using tty_pixel_it_type = typename TtyScreenBuffer::tty_pixel_it_type;
-
-tty_pixel_it_type TtyScreenBuffer::rowBegin(const uint16_t row_i) {
+TtyScreenBuffer::pixel_iter_type TtyScreenBuffer::rowBegin(const uint16_t row_i) {
     assert(row_i < h);
     return pixels.begin() + (row_i * w);
 }
 
-tty_pixel_it_type TtyScreenBuffer::rowEnd(const uint16_t row_i) {
+TtyScreenBuffer::pixel_iter_type TtyScreenBuffer::rowEnd(const uint16_t row_i) {
     assert(row_i < h);
-    return pixels.begin() + (row_i * (w + 1));
+    return pixels.begin() + ((row_i + 1) * w);
 }
 
 void TtyScreenBuffer::pixelCharReplace(const uint16_t col_i, const uint16_t row_i,

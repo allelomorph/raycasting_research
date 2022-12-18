@@ -136,7 +136,6 @@ void TtyDisplayMgr::renderMap(const DdaRaycastEngine& raycast_engine
     const uint16_t player_y ( raycast_engine.player_pos(1) );
     const uint16_t map_delta_y ( minimap_h / 2 );
     const uint16_t map_delta_x ( minimap_w / 2 );
-    const Layout& layout { raycast_engine.layout };
     for (int16_t map_y ( player_y + map_delta_y );
          map_y >= player_y - map_delta_y; --map_y, ++display_row_i) {
         line.clear();
@@ -144,12 +143,12 @@ void TtyDisplayMgr::renderMap(const DdaRaycastEngine& raycast_engine
         for (int16_t map_x ( player_x - map_delta_x );
              map_x <= player_x + map_delta_x; ++map_x) {
             if (map_x < 0 || map_y < 0 ||
-                map_x >= static_cast<int16_t>(layout.w) ||
-                map_y >= static_cast<int16_t>(layout.h) ||
+                map_x >= static_cast<int16_t>(raycast_engine.layout.w) ||
+                map_y >= static_cast<int16_t>(raycast_engine.layout.h) ||
                 !raycast_engine.layout.tileIsWall(map_x, map_y)) {
                 line.push_back(' ');
             } else {
-                line.push_back(raycast_engine.layout.tileData(map_x, map_y) + '0');
+                line.push_back(raycast_engine.layout.tile(map_x, map_y) + '0');
             }
         }
         line.push_back(' ');  // right border

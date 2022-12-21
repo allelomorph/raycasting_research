@@ -45,18 +45,18 @@ void TtyDisplayMgr::clearDisplay() {
         Xterm::CtrlSeqs::EraseLinesBelow();
 }
 
-void TtyDisplayMgr::initialize(const double map_proportion) {
+void TtyDisplayMgr::initialize(const Settings& settings) {
     // Use of ttyname taken from coreutils tty, see:
     //  - https://github.com/coreutils/coreutils/blob/master/src/tty.c
     tty_name = safeCExec(ttyname, "ttyname",
                          C_RETURN_TEST(char *, (ret == nullptr)),
                          STDIN_FILENO);
 
-    fitToWindow(map_proportion);
+    fitToWindow(settings.map_proportion);
 
     // force scrollback of all terminal text by drawing an empty frame
     //   (screen_buffer default init is to all black ' ' chars)
-    drawScreen();
+    drawScreen(settings);
     clearDisplay();
     std::cout << Xterm::CtrlSeqs::HideCursor();
 }
@@ -265,43 +265,36 @@ void TtyDisplayMgr::renderHUD(const double pt_frame_duration_mvg_avg,
     }
 }
 
-void TtyDisplayMgr::drawScreen() {
+void TtyDisplayMgr::drawScreen(const Settings& settings) {
     assert(screen_buffer.h > 0);
     std::ostringstream oss;
     TtyPixel px;
+    const TtyDisplayMode tty_display_mode { settings.tty_display_mode };
     // subtraction implicitly converts to int
     uint16_t last_row_i ( screen_buffer.h - 1 );
     for (uint16_t row_i { 0 }; row_i < last_row_i; ++row_i) {
         for (uint16_t col_i { 0 }; col_i < screen_buffer.w; ++col_i) {
             px = screen_buffer.pixel(col_i, row_i);
-/*
-            if (mode is 256 color) {
+            if (tty_display_mode == TtyDisplayMode::ColorCode)
                 oss << Xterm::CtrlSeqs::CharBgColor(px.code);
-            }
-            if (mode is true color) {
+            else if (tty_display_mode == TtyDisplayMode::TrueColor)
                 oss << Xterm::CtrlSeqs::CharBgColor(px.r, px.g, px.b);
-            }
-*/
             oss << px.c;
         }
-        oss << '\n';
+        oss << Xterm::CtrlSeqs::CharDefaults() << '\n';
     }
     // TBD: last line could instead be used for notifications and collecting
     //   user text input, eg loading a new map file
     // newline in last row would scroll screen up
     for (uint16_t col_i { 0 }; col_i < screen_buffer.w; ++col_i) {
             px = screen_buffer.pixel(col_i, last_row_i);
-/*
-            if (mode is 256 color) {
+            if (tty_display_mode == TtyDisplayMode::ColorCode)
                 oss << Xterm::CtrlSeqs::CharBgColor(px.code);
-            }
-            if (mode is true color) {
+            else if (tty_display_mode == TtyDisplayMode::TrueColor)
                 oss << Xterm::CtrlSeqs::CharBgColor(px.r, px.g, px.b);
-            }
-*/
             oss << px.c;
     }
 
     std::cout << oss.str();
-    std::cout << Xterm::CtrlSeqs::CursorHome();
+    std::cout << Xterm::CtrlSeqs::CharDefaults() << Xterm::CtrlSeqs::CursorHome();
 }

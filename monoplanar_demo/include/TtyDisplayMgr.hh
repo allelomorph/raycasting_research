@@ -3,7 +3,7 @@
 
 // #include "DisplayMgr.hh"
 #include "TtyScreenBuffer.hh"
-#include "Settings.hh"
+#include "Settings.hh"          // TtyDisplayMode
 #include "DdaRaycastEngine.hh"  // FovRay
 #include "KbdInputMgr.hh"
 
@@ -33,7 +33,7 @@ protected:
 public:
     std::string tty_name;
 
-    void initialize(const double map_proportion);
+    void initialize(const Settings& settings);
 
     void fitToWindow(const double map_proportion);
 
@@ -52,7 +52,7 @@ public:
                    const std::unique_ptr<KbdInputMgr>& kbd_input_mgr);
 
     // TBD: drawFrame instead?
-    void drawScreen();
+    void drawScreen(const Settings& settings);
 };
 
 #endif  // TTYDISPLAYMGR_HH

@@ -2,7 +2,7 @@
 #define APP_HH
 
 #include "FpsCalc.hh"
-#include "Settings.hh"
+#include "Settings.hh"           // TtyDisplayMode
 #include "KbdInputMgr.hh"
 #include "DdaRaycastEngine.hh"
 // #include "DisplayMgr.hh"
@@ -23,8 +23,12 @@ extern volatile std::sig_atomic_t sigwinch_received;
 class App {
 public:
     App() = delete;
-    App(const char* efn, const std::string& mfn) :
-        exec_filename(efn), map_filename(mfn) {}
+    App(const char* efn, const std::string& mfn, const bool _tty_io,
+        TtyDisplayMode tty_display_mode) : exec_filename(efn), map_filename(mfn),
+                                           tty_io(_tty_io) {
+        if (tty_io)
+            settings.tty_display_mode = tty_display_mode;
+    }
 
     void run();
 
@@ -34,9 +38,9 @@ private:
 
     // operation flags
     //
-    bool tty_mode { true };
-    bool stop     { false };
-    bool pause    { false };
+    bool    tty_io   { true };
+    bool    stop     { false };
+    bool    pause    { false };
 
     // frame timing
     //

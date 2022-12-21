@@ -5,6 +5,7 @@
 //#include "SdlKbdInputMgr.hh"
 
 #include <csignal>           // sigaction SIG* sig_atomic_t
+#include <cstring>           // memset
 
 
 // Need to be global to be visible to sigaction
@@ -24,33 +25,31 @@ void App::initialize() {
     rt_fps_calc.initialize();
 
     struct sigaction sa;
+    // valgrind complains if struct is uninitialized
+    // struct definition is implementation-dependent, so no brace initializer
+    // memset has no return or errno, so no safeCExec
+    std::memset(&sa, 0, sizeof(struct sigaction));
     sa.sa_handler = sigint_sigterm_handler;
     safeCExec(sigaction, "sigaction", C_RETURN_TEST(int, (ret == -1)),
               SIGINT, &sa, nullptr);
     safeCExec(sigaction, "sigaction", C_RETURN_TEST(int, (ret == -1)),
               SIGTERM, &sa, nullptr);
+    std::memset(&sa, 0, sizeof(struct sigaction));
     sa.sa_handler = sigwinch_handler;
     safeCExec(sigaction, "sigaction", C_RETURN_TEST(int, (ret == -1)),
               SIGWINCH, &sa, nullptr);
 
-    display_mgr.initialize(settings.map_proportion);
+    display_mgr.initialize(settings);
     raycast_engine.updateScreenSize(display_mgr.screenWidth());
     // parse map file to get maze and starting actor positions
     raycast_engine.loadMapFile(map_filename);
 /*
-    kbd_input_mgr = tty_mode ?
+    kbd_input_mgr = tty_io ?
         std::unique_ptr<LinuxKbdInputMgr>(new LinuxKbdInputMgr(exec_filename)) :
         std::unique_ptr<SdlKbdInputMgr>(new SdlKbdInputMgr());
 */
     kbd_input_mgr = std::unique_ptr<LinuxKbdInputMgr>(
         new LinuxKbdInputMgr(exec_filename) );
-
-    if (tty_mode) {
-        // force scrollback of all terminal text before frame display
-        display_mgr.drawScreen();
-        display_mgr.clearDisplay();
-        std::cout << Xterm::CtrlSeqs::HideCursor();
-    }
 }
 
 void App::run() {
@@ -64,7 +63,7 @@ void App::run() {
         getEvents();
         updateState();
 
-        if (tty_mode && sigwinch_received) {
+        if (tty_io && sigwinch_received) {
             display_mgr.clearDisplay();
             // terminal window size changes require rehiding the cursor
             std::cout << Xterm::CtrlSeqs::HideCursor();
@@ -84,20 +83,20 @@ void App::run() {
                               settings, raycast_engine, kbd_input_mgr);
 
         // TBD: debug errors on terminal window size changes
-        if (tty_mode && sigwinch_received)
+        if (tty_io && sigwinch_received)
             continue;
 
-        display_mgr.drawScreen();
+        display_mgr.drawScreen(settings);
     }
 
-    if (tty_mode) {
+    if (tty_io) {
         display_mgr.clearDisplay();
         std::cout << Xterm::CtrlSeqs::ShowCursor();
     }
 }
 
 void App::getEvents() {
-    if (tty_mode) {
+    if (tty_io) {
         kbd_input_mgr->consumeKeyEvents();
     } else {
     }

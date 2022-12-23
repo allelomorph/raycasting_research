@@ -1,0 +1,141 @@
+## Context for all suppressions:
+##   - SDL 2.0.10
+##   - valgrind-3.15.0
+##   - g++ 9.4.0
+##   - Ubuntu 20.04.1
+
+## !!! Warning: not having debug symbols (SDL library function names) means that
+##   all SDL internal functions appear in the call stack as
+##   `/usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.10.0`, creating less specific
+##   suppressions which could potentially hide other leak reporting.
+
+## Begin suppressions for leaks reported after `SDL_Init(0); SDL_Quit();`
+
+## See:
+##   - https://github.com/libsdl-org/SDL/issues/1680
+##   - https://wiki.libsdl.org/SDL2/SDL_TLSCleanup (2.0.16)
+
+{
+   SDL_2.0.10_SDL_Init_unknown_88B_reachable
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   fun:realloc
+   obj:/usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.10.0
+   obj:/usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.10.0
+   obj:/usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.10.0
+   obj:/usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.10.0
+   obj:/usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.10.0
+   fun:main
+}
+
+{
+   SDL_2.0.10_SDL_Init_unknown_776B_reachable
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   obj:/usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.10.0
+   obj:/usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.10.0
+   obj:/usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.10.0
+   obj:/usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.10.0
+   fun:main
+}
+
+## End suppressions for leaks reported after `SDL_Init(0); SDL_Quit();`
+
+## Begin suppressions for leaks reported after `SDL_CreateWindow(...); SDL_DestroyWindow(...);`
+
+{
+   SDL_2.0.10_SDL_CreateWindow_unknown_77B_reachable
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   obj:/usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.10.0
+   obj:/usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.10.0
+   obj:/usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.10.0
+   obj:/usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.10.0
+   obj:/usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.10.0
+   obj:/usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.10.0
+   obj:/usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.10.0
+   obj:/usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.10.0
+   fun:main
+}
+
+{
+   SDL_2.0.10_XSetLocaleModifiers_definite
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:_XlcDefaultMapModifiers
+   fun:XSetLocaleModifiers
+   obj:/usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.10.0
+   obj:/usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.10.0
+   obj:/usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.10.0
+   obj:/usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.10.0
+   fun:main
+}
+
+{
+   libLLVM_reachable
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   obj:/usr/lib/x86_64-linux-gnu/libLLVM-12.so.1
+   ...
+}
+
+{
+   libX11_reachable
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   obj:/usr/lib/x86_64-linux-gnu/libX11.so.6.3.0
+   ...
+}
+
+{
+   libGLX_definite
+   Memcheck:Leak
+   match-leak-kinds: definite
+   ...
+   obj:/usr/lib/x86_64-linux-gnu/libGLX.so.0.0.0
+   ...
+}
+
+{
+   libdbus_reachable
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   obj:/usr/lib/x86_64-linux-gnu/libdbus-1.so.3.19.11
+   ...
+}
+
+{
+   GLIBC_dlopen_reachable
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:dlopen@@GLIBC_2.2.5
+   ...
+}
+
+{
+   _dl_catch_exception_reachable
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:_dl_catch_exception
+   ...
+}
+
+{
+   _dl_catch_exception_definite
+   Memcheck:Leak
+   match-leak-kinds: definite
+   ...
+   fun:_dl_catch_exception
+   ...
+}
+
+## End suppressions for leaks reported after `SDL_CreateWindow(...); SDL_DestroyWindow(...);`

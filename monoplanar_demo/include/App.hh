@@ -24,11 +24,8 @@ class App {
 public:
     App() = delete;
     App(const char* efn, const std::string& mfn, const bool _tty_io,
-        TtyDisplayMode tty_display_mode) : exec_filename(efn), map_filename(mfn),
-                                           tty_io(_tty_io) {
-        if (tty_io)
-            settings.tty_display_mode = tty_display_mode;
-    }
+        TtyDisplayMode tty_display_mode);
+    ~App();
 
     void run();
 

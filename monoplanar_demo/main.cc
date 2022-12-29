@@ -123,9 +123,7 @@ int main(int argc, char* const argv[]) {
         tty_display_mode = TtyDisplayMode::Ascii;
 
     // TBD: remove
-    if (io_mode == IoMode::Sdl ||
-        tty_display_mode == TtyDisplayMode::ColorCode ||
-        tty_display_mode == TtyDisplayMode::TrueColor) {
+    if (io_mode == IoMode::Sdl) {
         std::cerr << argv[0] << ": mode not implemented yet!" << std::endl;
         return (EXIT_FAILURE);
     }

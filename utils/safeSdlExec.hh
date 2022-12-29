@@ -34,7 +34,7 @@
 // TBD: how to allow for throwing other exception types, eg bad_alloc?
 
 template<typename FuncPtrType, typename ReturnType, typename ...ParamTypes>
-ReturnType safeSDLExec(FuncPtrType func, const std::string& func_name,
+ReturnType safeSdlExec(FuncPtrType func, const std::string& func_name,
                        bool (*is_failure)(ReturnType),
                        ParamTypes ...params) {
     // TBD: this assert for every call may be too slow

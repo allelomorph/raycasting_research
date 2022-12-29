@@ -11,7 +11,7 @@
 
 
 enum class WallOrientation { EW, NS };
-
+/*
 struct FovRay {
     Vector2d        dir;            // ray direction
     double          wall_dist;      // distance to first wall collision
@@ -19,23 +19,24 @@ struct FovRay {
     // TBD: SDL_Texture* wall_texture, or
     // TBD: uint16_t map_x, map_y
 };
-
-/*
+*/
 struct FovRay {
 private:
     struct WallHit {
-        double          dist    { 0.0 };  // distance to first wall collision
+        double          dist { 0.0 };     // distance to first wall collision
         WallOrientation algnmt;           // EW or NS alignment of wall hit
-        uint16_t        map_x   { 0 };    // wall map tile x
-        uint16_t        map_y   { 0 };    // wall map tile y
-        // (really all that's needed to draw the wall strip is distance, alignment,
-        //    texture_x, and texture_key/index)
+        uint8_t         tex_key;          // layout.tile(map_x, map_y)
+        double          x;                // when viewing grid tile as wall unit
+                                          //   from player's perspective, x in
+                                          //   wall unit face where ray hit
+                                          //   (expressed as fraction of wall unit,
+                                          //   with 0.0 to player's left when
+                                          //   facing side hit)
     };
 public:
     Vector2d            dir;              // ray direction
     WallHit             wall_hit;
 };
-*/
 
 class DdaRaycastEngine {
 private:

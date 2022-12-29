@@ -22,6 +22,9 @@ struct TtyPixel : public BgColorData {
         BgColorData(r, g, b), c(_c) {}
 };
 
+// TBD: after further testing, using a raw vector data() pointer outperforms both
+//   pixel(x,y) and (by a wide margin) iterators - rewrite hotspot documentation
+//   to reflect this
 // TBD: Since in testing a 1D vector outperformed a 2D vector here, maybe create a
 //   base template class GridBuffer<T> to also take the place of Layout.map,
 //   as in theory this means tileData() and tileIsWall() use in raycasting and
@@ -48,7 +51,7 @@ public:
     void resize(const uint16_t _w, const uint16_t _h);
 
     // get/set pixels
-    TtyPixel& pixel(const uint16_t col_i, const uint16_t row_i);
+    TtyPixel* pixel(const uint16_t col_i, const uint16_t row_i);
 
     // horizontally fills in pixel chars, used to render minimap and HUD
     void pixelCharReplace(const uint16_t col_i, const uint16_t row_i,

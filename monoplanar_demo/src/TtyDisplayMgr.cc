@@ -1,6 +1,9 @@
 #include "TtyDisplayMgr.hh"
 #include "safeCExec.hh"               // C_*
+#include "safeSdlExec.hh"             // SDL_RETURN_TEST
 #include "Xterm.hh"                   // CtrlSeqs::
+
+#include <SDL2/SDL_image.h>           // IMG_*
 
 #include <termios.h>                  // winsize
 #include <sys/ioctl.h>
@@ -8,7 +11,7 @@
 #include <linux/input-event-codes.h>  // KEY_*
 
 #include <cassert>
-#include <cmath>                      // sin cos M_PI
+#include <cmath>                      // sin cos M_PI modf
 #include <cstdio>                     // sprintf
 #include <cstring>                    // strlen memset
 
@@ -16,6 +19,7 @@
 #include <iomanip>                    // setw
 #include <string>
 #include <sstream>
+#include <algorithm>                  // max min
 
 
 void TtyDisplayMgr::updateMiniMapSize(const double map_proportion) {
@@ -25,6 +29,202 @@ void TtyDisplayMgr::updateMiniMapSize(const double map_proportion) {
     if (minimap_h % 2 == 0)
         ++(minimap_h);
     minimap_w = (minimap_h * 2) + 1;
+}
+
+void TtyDisplayMgr::renderAsciiPixelColumn(const uint16_t screen_x,
+                                           const int16_t ceiling_screen_y,
+                                           const uint16_t line_h,
+                                           const WallOrientation wall_hit_algnmt) {
+    uint16_t screen_y { 0 };
+    uint16_t screen_line_begin_y ( std::max(0, (int)ceiling_screen_y) );
+    uint16_t screen_line_end_y ( std::min((int)screen_buffer.h, ceiling_screen_y + line_h) );
+    uint16_t screen_w { screen_buffer.w };
+    TtyPixel* screen_px { screen_buffer.pixel(screen_x, screen_y) };
+    // draw ceiling
+    for (; screen_y < screen_line_begin_y; ++screen_y, screen_px += screen_w)
+        screen_px->c = ' ';
+    // draw wall, shading NS walls darker to differentiate
+    for (; screen_y < screen_line_end_y; ++screen_y, screen_px += screen_w) {
+        screen_px->c =
+            (wall_hit_algnmt == WallOrientation::EW) ? '@' : '|';
+    }
+    // draw floor
+    for (; screen_y < screen_buffer.h; ++screen_y, screen_px += screen_w)
+        screen_px->c = ' ';
+}
+
+void TtyDisplayMgr::render256ColorPixelColumn(const uint16_t screen_x,
+                                              const int16_t ceiling_screen_y,
+                                              const uint16_t line_h,
+                                              const WallOrientation wall_hit_algnmt,
+                                              const SDL_Surface* texture,
+                                              const uint16_t tex_x) {
+    uint16_t screen_y { 0 };
+    uint16_t screen_line_begin_y ( std::max(0, (int)ceiling_screen_y) );
+    uint16_t screen_line_end_y ( std::min((int)screen_buffer.h, ceiling_screen_y + line_h) );
+    uint16_t screen_w { screen_buffer.w };
+    TtyPixel* column_px { screen_buffer.pixel(screen_x, screen_y) };
+    // draw ceiling
+    for (; screen_y < screen_line_begin_y; ++screen_y, column_px += screen_w) {
+        column_px->code = (uint8_t)Xterm::Color::Codes::System::Black;
+    }
+    // draw wall, shading NS walls darker to differentiate
+    double tex_h_ratio { texture->h / (double)line_h };
+    SDL_PixelFormat* tex_format { texture->format };
+    uint8_t* tex_px_data { (uint8_t*)(texture->pixels) + (tex_x * tex_format->BytesPerPixel) };
+    uint16_t tex_row_sz ( texture->pitch );
+    uint8_t r, g, b;
+    for (uint16_t tex_y; screen_y < screen_line_end_y; ++screen_y, column_px += screen_w) {
+        // screen_buffer traversal can optimize away calling `screen_buffer.pixel(
+        //   screen_x, screen_y)` due a consistent step of screen_y += 1 each
+        //   loop; using a similar approach to texture traversal is difficult
+        //   as we need to accommodate any possible tex_h:line_h ratio, and
+        //   so possibly inconsistent step values for tex_y as it is fit to screen_y
+        tex_y = (screen_y - ceiling_screen_y /*line_y*/) * tex_h_ratio;
+        SDL_GetRGB(*(uint32_t*)(tex_px_data + (tex_y * tex_row_sz)),
+                   tex_format, &r, &g, &b);
+        if (wall_hit_algnmt != WallOrientation::EW) {
+            r /= 2;
+            g /= 2;
+            b /= 2;
+        }
+        column_px->code = Xterm::Color::Codes::fromRGB(r, g, b);
+    }
+    // draw floor
+    for (; screen_y < screen_buffer.h; ++screen_y, column_px += screen_w) {
+        column_px->code = (uint8_t)Xterm::Color::Codes::System::Black;
+    }
+}
+
+void TtyDisplayMgr::renderTrueColorPixelColumn(const uint16_t screen_x,
+                                               const int16_t ceiling_screen_y,
+                                               const uint16_t line_h,
+                                               const WallOrientation wall_hit_algnmt,
+                                               const SDL_Surface* texture,
+                                               const uint16_t tex_x) {
+    uint16_t screen_y { 0 };
+    uint16_t screen_line_begin_y ( std::max(0, (int)ceiling_screen_y) );
+    uint16_t screen_line_end_y ( std::min((int)screen_buffer.h, ceiling_screen_y + line_h) );
+    uint16_t screen_w { screen_buffer.w };
+    TtyPixel* screen_px { screen_buffer.pixel(screen_x, screen_y) };
+    // draw ceiling
+    for (; screen_y < screen_line_begin_y; ++screen_y, screen_px += screen_w) {
+        screen_px->r = 0;
+        screen_px->g = 0;
+        screen_px->b = 0;
+    }
+    // draw wall, shading NS walls darker to differentiate
+    double tex_h_ratio { texture->h / (double)line_h };
+    SDL_PixelFormat* tex_format { texture->format };
+    uint8_t* tex_px_data { (uint8_t*)(texture->pixels) + (tex_x * tex_format->BytesPerPixel) };
+    uint16_t tex_row_sz ( texture->pitch );
+    uint8_t r, g, b;
+    for (uint16_t tex_y; screen_y < screen_line_end_y; ++screen_y, screen_px += screen_w) {
+        // screen_buffer traversal can optimize away calling `screen_buffer.pixel(
+        //   screen_x, screen_y)` due a consistent step of screen_y += 1 each
+        //   loop; using a similar approach to texture traversal is difficult
+        //   as we need to accommodate any possible tex_h:line_h ratio, and
+        //   so possibly inconsistent step values for tex_y as it is fit to screen_y
+        tex_y = (screen_y - ceiling_screen_y /*line_y*/) * tex_h_ratio;
+        SDL_GetRGB(*(uint32_t*)(tex_px_data + (tex_y * tex_row_sz)),
+                   tex_format, &r, &g, &b);
+        if (wall_hit_algnmt != WallOrientation::EW) {
+            r /= 2;
+            g /= 2;
+            b /= 2;
+        }
+        screen_px->r = r;
+        screen_px->g = g;
+        screen_px->b = b;
+    }
+    // draw floor
+    for (; screen_y < screen_buffer.h; ++screen_y, screen_px += screen_w) {
+        screen_px->r = 0;
+        screen_px->g = 0;
+        screen_px->b = 0;
+    }
+}
+
+// TBD: make public member? In case of building for optional multithreading,
+//   each thread would have to trace a batch of rays, then render their
+//   respective pixel columns without stopping to wait for the others,
+//   which means each thread would have to call this.
+// The core illusion of raycasting comes from rendering walls in vertical
+//   strips, one per each ray cast in the FOV, with each strip being longer
+//   as the ray is shorter/wall is closer, forcing perspective.
+void TtyDisplayMgr::renderPixelColumn(const uint16_t screen_x,
+                                      const FovRay& ray,
+                                      const TtyDisplayMode tty_display_mode) {
+
+    // calculate height of vertical strip of wall to draw on screen
+    uint16_t line_h ( screen_buffer.h / ray.wall_hit.dist );
+
+    // row index of highest pixel in strip (may be negative if camera is close
+    //   to wall and wall unit does not fit in frame)
+    int16_t ceiling_screen_y ( screen_buffer.h / 2 - line_h / 2 );
+
+    if (tty_display_mode == TtyDisplayMode::Ascii) {
+        return renderAsciiPixelColumn(screen_x, ceiling_screen_y, line_h,
+                                      ray.wall_hit.algnmt);
+    }
+
+    // TBD: add protection for out of range tex key? or in map parsing?
+    // find proportionate x coordinate in wall texture
+    SDL_Surface* texture { wall_textures.at(ray.wall_hit.tex_key).get() };
+    uint16_t tex_x ( ray.wall_hit.x * texture->w );
+    // ensure texture x of 0 is always to the left when facing the wall segment
+    if ((ray.wall_hit.algnmt == WallOrientation::EW && ray.dir(0) > 0) ||
+        (ray.wall_hit.algnmt == WallOrientation::NS && ray.dir(1) < 0) ) {
+        tex_x = texture->w - tex_x - 1;
+    }
+
+    if (tty_display_mode == TtyDisplayMode::ColorCode) {
+        return render256ColorPixelColumn(screen_x, ceiling_screen_y, line_h,
+                                         ray.wall_hit.algnmt, texture, tex_x);
+    }
+
+    if (tty_display_mode == TtyDisplayMode::TrueColor) {
+        return renderTrueColorPixelColumn(screen_x, ceiling_screen_y, line_h,
+                                          ray.wall_hit.algnmt, texture, tex_x);
+    }
+}
+
+// TBD: IMG_Init/Quit can be moved to parent ctor/dtor
+TtyDisplayMgr::TtyDisplayMgr() {
+    safeSdlExec(IMG_Init, "IMG_Init", SDL_RETURN_TEST(int, (ret == 0)),
+                IMG_INIT_JPG);
+}
+
+TtyDisplayMgr::~TtyDisplayMgr() {
+    IMG_Quit();
+}
+
+void TtyDisplayMgr::initialize(const Settings& settings) {
+    // Use of ttyname taken from coreutils tty, see:
+    //  - https://github.com/coreutils/coreutils/blob/master/src/tty.c
+    tty_name = safeCExec(ttyname, "ttyname",
+                         C_RETURN_TEST(char *, (ret == nullptr)),
+                         STDIN_FILENO);
+
+    fitToWindow(settings.map_proportion);
+
+    // TBD: eventually change to map of texture keys representing floor/ceiling/walls
+    // dummmy texture at index 0, as map tile 0 represents non-wall tile
+    wall_textures.emplace_back(SdlSurfaceUnqPtr(nullptr, surface_deleter));
+    // load textures (into surfaces for per-pixel access)
+    for (uint8_t i { 1 }; i < wall_texture_paths.size(); ++i) {
+        wall_textures.emplace_back( SdlSurfaceUnqPtr(
+            safeSdlExec(IMG_Load, "IMG_Load", SDL_RETURN_TEST(SDL_Surface*, (ret == nullptr)),
+                        wall_texture_paths[i]),
+            surface_deleter) );
+        std::cout << "loaded texture: " << wall_texture_paths[i] << '\n';
+    }
+
+    // force scrollback of all terminal text by drawing an empty frame
+    //   (screen_buffer default init is to all black ' ' chars)
+    drawScreen(settings);
+    clearDisplay();
+    std::cout << Xterm::CtrlSeqs::HideCursor();
 }
 
 void TtyDisplayMgr::fitToWindow(const double map_proportion) {
@@ -39,70 +239,27 @@ void TtyDisplayMgr::fitToWindow(const double map_proportion) {
     updateMiniMapSize(map_proportion);
 }
 
+// TBD: integrate with interface class
+void TtyDisplayMgr::resetBuffer() {
+    // favoring C-like pointer over iterator for performance
+    TtyPixel* pixel { screen_buffer.pixel(0, 0) };
+    uint32_t screen_buffer_sz ( screen_buffer.w * screen_buffer.h );
+    for (uint32_t i { 0 }; i < screen_buffer_sz; ++i, ++pixel)
+        pixel->c = ' ';
+}
+
 // TBD remove?
 void TtyDisplayMgr::clearDisplay() {
     std::cout << Xterm::CtrlSeqs::CursorHome() <<
         Xterm::CtrlSeqs::EraseLinesBelow();
 }
 
-void TtyDisplayMgr::initialize(const Settings& settings) {
-    // Use of ttyname taken from coreutils tty, see:
-    //  - https://github.com/coreutils/coreutils/blob/master/src/tty.c
-    tty_name = safeCExec(ttyname, "ttyname",
-                         C_RETURN_TEST(char *, (ret == nullptr)),
-                         STDIN_FILENO);
-
-    fitToWindow(settings.map_proportion);
-
-    // force scrollback of all terminal text by drawing an empty frame
-    //   (screen_buffer default init is to all black ' ' chars)
-    drawScreen(settings);
-    clearDisplay();
-    std::cout << Xterm::CtrlSeqs::HideCursor();
-}
-
-// TBD: make public member? In case of building for optional multithreading,
-//   each thread would have to trace a batch of rays, then render their
-//   respective pixel columns without stopping to wait for the others,
-//   which means each thread would have to call this.
-// The core illusion of raycasting comes from rendering walls in vertical
-//   strips, one per each ray cast in the FOV, with each strip being longer
-//   as the ray is shorter/wall is closer, forcing perspective.
-void TtyDisplayMgr::renderPixelColumn(const uint16_t screen_x,
-                                      const FovRay& ray) {
-
-    // calculate height of vertical strip of wall to draw on screen
-    uint16_t line_h ( screen_buffer.h / ray.wall_dist );
-
-    // calculate lowest and highest pixel in strip, trimmed to screen borders
-    uint16_t ceiling_screen_y;
-    uint16_t floor_screen_y;
-    if (line_h >= screen_buffer.h) {
-        ceiling_screen_y = 0;
-        floor_screen_y = screen_buffer.h - 1;
-    } else {
-        ceiling_screen_y = screen_buffer.h / 2 - line_h / 2;
-        floor_screen_y = screen_buffer.h / 2 + line_h / 2;
+void TtyDisplayMgr::renderView(const std::vector<FovRay>& fov_rays,
+                               const Settings& settings) {
+    TtyDisplayMode tty_display_mode { settings.tty_display_mode };
+    for (uint16_t screen_x { 0 }; screen_x < screen_buffer.w; ++screen_x) {
+        renderPixelColumn(screen_x, fov_rays[screen_x], tty_display_mode);
     }
-
-    // TBD: add test for ascii/256/truecolor modes
-    uint16_t screen_y;
-    // draw ceiling
-    for (screen_y = 0; screen_y < ceiling_screen_y; ++screen_y)
-        screen_buffer.pixel(screen_x, screen_y).c = ' ';
-    // draw wall, shading NS walls darker to differentiate
-    for (; screen_y <= floor_screen_y; ++screen_y) {
-        screen_buffer.pixel(screen_x, screen_y).c =
-            (ray.type_wall_hit == WallOrientation::EW) ? '@' : '|';
-    }
-    // draw floor
-    for (; screen_y < screen_buffer.h; ++screen_y)
-        screen_buffer.pixel(screen_x, screen_y).c = ' ';
-}
-
-void TtyDisplayMgr::renderView(const std::vector<FovRay>& fov_rays) {
-    for (uint16_t screen_x { 0 }; screen_x < screen_buffer.w; ++screen_x)
-        renderPixelColumn(screen_x, fov_rays[screen_x]);
 }
 
 // https://stackoverflow.com/questions/6247153/angle-from-2d-unit-vector
@@ -265,34 +422,46 @@ void TtyDisplayMgr::renderHUD(const double pt_frame_duration_mvg_avg,
     }
 }
 
+// TBD: switch to pointer arithmetic optimization like renderPixelColumn*
+// TBD: specialize this like renderPixelColumn to prevent testing tty_display_mode for every px
 void TtyDisplayMgr::drawScreen(const Settings& settings) {
     assert(screen_buffer.h > 0);
     std::ostringstream oss;
-    TtyPixel px;
+    TtyPixel* px { screen_buffer.pixel(0, 0) };
     const TtyDisplayMode tty_display_mode { settings.tty_display_mode };
     // subtraction implicitly converts to int
     uint16_t last_row_i ( screen_buffer.h - 1 );
-    for (uint16_t row_i { 0 }; row_i < last_row_i; ++row_i) {
-        for (uint16_t col_i { 0 }; col_i < screen_buffer.w; ++col_i) {
-            px = screen_buffer.pixel(col_i, row_i);
-            if (tty_display_mode == TtyDisplayMode::ColorCode)
-                oss << Xterm::CtrlSeqs::CharBgColor(px.code);
-            else if (tty_display_mode == TtyDisplayMode::TrueColor)
-                oss << Xterm::CtrlSeqs::CharBgColor(px.r, px.g, px.b);
-            oss << px.c;
+    if (tty_display_mode == TtyDisplayMode::Ascii) {
+        for (uint16_t row_i { 0 }; row_i < last_row_i; ++row_i) {
+            for (uint16_t col_i { 0 }; col_i < screen_buffer.w; ++col_i, ++px) {
+                oss << px->c;
+            }
+            oss << '\n';
         }
-        oss << Xterm::CtrlSeqs::CharDefaults() << '\n';
+    } else if (tty_display_mode == TtyDisplayMode::ColorCode) {
+        for (uint16_t row_i { 0 }; row_i < last_row_i; ++row_i) {
+            for (uint16_t col_i { 0 }; col_i < screen_buffer.w; ++col_i, ++px) {
+                oss << Xterm::CtrlSeqs::CharBgColor(px->code) << px->c;
+            }
+            oss << Xterm::CtrlSeqs::CharDefaults() << '\n';
+        }
+    } else {
+        for (uint16_t row_i { 0 }; row_i < last_row_i; ++row_i) {
+            for (uint16_t col_i { 0 }; col_i < screen_buffer.w; ++col_i, ++px) {
+                oss << Xterm::CtrlSeqs::CharBgColor(px->r, px->g, px->b) << px->c;
+            }
+            oss << Xterm::CtrlSeqs::CharDefaults() << '\n';
+        }
     }
     // TBD: last line could instead be used for notifications and collecting
     //   user text input, eg loading a new map file
     // newline in last row would scroll screen up
-    for (uint16_t col_i { 0 }; col_i < screen_buffer.w; ++col_i) {
-            px = screen_buffer.pixel(col_i, last_row_i);
-            if (tty_display_mode == TtyDisplayMode::ColorCode)
-                oss << Xterm::CtrlSeqs::CharBgColor(px.code);
-            else if (tty_display_mode == TtyDisplayMode::TrueColor)
-                oss << Xterm::CtrlSeqs::CharBgColor(px.r, px.g, px.b);
-            oss << px.c;
+    for (uint16_t col_i { 0 }; col_i < screen_buffer.w; ++col_i, ++px) {
+        if (tty_display_mode == TtyDisplayMode::ColorCode)
+            oss << Xterm::CtrlSeqs::CharBgColor(px->code);
+        else if (tty_display_mode == TtyDisplayMode::TrueColor)
+            oss << Xterm::CtrlSeqs::CharBgColor(px->r, px->g, px->b);
+        oss << px->c;
     }
 
     std::cout << oss.str();

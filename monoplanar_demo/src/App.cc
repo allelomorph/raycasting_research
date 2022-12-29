@@ -1,8 +1,11 @@
 #include "App.hh"
 #include "safeCExec.hh"      // C_*
+#include "safeSdlExec.hh"    // SDL_RETURN_TEST
 #include "Xterm.hh"          // CtrlSeqs
 #include "LinuxKbdInputMgr.hh"
 //#include "SdlKbdInputMgr.hh"
+
+#include <SDL2/SDL.h>        // SDL_Init SDL_Quit
 
 #include <csignal>           // sigaction SIG* sig_atomic_t
 #include <cstring>           // memset
@@ -20,6 +23,22 @@ static void sigwinch_handler(int /*signal*/) {
     sigwinch_received = 1;
 }
 
+App::App(const char* efn, const std::string& mfn,
+         const bool _tty_io, TtyDisplayMode tty_display_mode) :
+    exec_filename(efn), map_filename(mfn), tty_io(_tty_io) {
+    if (tty_io)
+        settings.tty_display_mode = tty_display_mode;
+
+    // When in tty I/O mode, SDL subsystems only used for error reporting on
+    //   failure of wall textures loading
+    safeSdlExec(SDL_Init, "SDL_Init", SDL_RETURN_TEST(int, ret != 0),
+                tty_io ? 0 : SDL_INIT_VIDEO);
+}
+
+App::~App() {
+    SDL_Quit();
+}
+
 void App::initialize() {
     pt_fps_calc.initialize();
     rt_fps_calc.initialize();
@@ -34,6 +53,7 @@ void App::initialize() {
               SIGINT, &sa, nullptr);
     safeCExec(sigaction, "sigaction", C_RETURN_TEST(int, (ret == -1)),
               SIGTERM, &sa, nullptr);
+    // sigwinch_handler only needed in tty mode, but registered in both modes
     std::memset(&sa, 0, sizeof(struct sigaction));
     sa.sa_handler = sigwinch_handler;
     safeCExec(sigaction, "sigaction", C_RETURN_TEST(int, (ret == -1)),
@@ -76,7 +96,7 @@ void App::run() {
 
         raycast_engine.castRays(settings);
 
-        display_mgr.renderView(raycast_engine.fov_rays);
+        display_mgr.renderView(raycast_engine.fov_rays, settings);
         display_mgr.renderMap(raycast_engine);
         display_mgr.renderHUD(pt_fps_calc.frame_duration_mvg_avg,
                               rt_fps_calc.frame_duration_mvg_avg.count(),
@@ -102,6 +122,8 @@ void App::getEvents() {
     }
 }
 
+// TBD: given that there is no alignment between SDLK_* and KEY_*, need to split
+//   function into updateFromLinuxKbdInput and updateFromSdlKbdInput
 void App::updateState() {
     // ctrl+c: simulate SIGINT (quit)
     if ((kbd_input_mgr->isPressed(KEY_LEFTCTRL) ||
@@ -176,6 +198,24 @@ void App::updateState() {
     // F4 key: toggle fisheye camera mode
     if (kbd_input_mgr->keyDownThisFrame(KEY_F4))
         settings.fisheye = !settings.fisheye;
+
+    // F10 key: ascii pixels in tty mode
+    if (kbd_input_mgr->keyDownThisFrame(KEY_F10))
+        settings.tty_display_mode = TtyDisplayMode::Ascii;
+
+    // F11 key: 256 color pixels in tty mode
+    if (kbd_input_mgr->keyDownThisFrame(KEY_F11)) {
+        settings.tty_display_mode = TtyDisplayMode::ColorCode;
+        // erase potential leftover chars from ascii mode
+        display_mgr.resetBuffer();
+    }
+
+    // F12 key: true color pixels in tty mode
+    if (kbd_input_mgr->keyDownThisFrame(KEY_F12)) {
+        settings.tty_display_mode = TtyDisplayMode::TrueColor;
+        // erase potential leftover chars from ascii mode
+        display_mgr.resetBuffer();
+    }
 
     kbd_input_mgr->decayToAutorepeat();
 }

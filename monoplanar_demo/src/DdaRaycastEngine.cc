@@ -36,9 +36,8 @@ void DdaRaycastEngine::updateScreenSize(const uint16_t w) {
     fov_rays.resize(screen_w);
 }
 
-// TBD: make layout member of engine?
 void DdaRaycastEngine::castRay(const uint16_t screen_x,
-                                 const Settings& settings) {
+                               const Settings& settings) {
     // x coordinate in the camera plane represented by the current
     //   screen x coordinate, calculated so that the left edge of the
     //   camera plane is -1.0, center 0.0, and right edge is 1.0
@@ -94,21 +93,22 @@ void DdaRaycastEngine::castRay(const uint16_t screen_x,
     // perform DDA algo, or the incremental casting of the ray
     // moves to a new map unit square every loop, as directed by map_step values
     // TBD: does orientation need to be set every loop?
+    WallOrientation alignment;
     while (!layout.tileIsWall(map_x, map_y)) {
         if (dist_next_unit_x < dist_next_unit_y) {
             dist_next_unit_x += dist_per_unit_x;
             map_x += map_step_x;
-            ray.type_wall_hit = WallOrientation::EW;
+            alignment = WallOrientation::EW;
         } else {
             dist_next_unit_y += dist_per_unit_y;
             map_y += map_step_y;
-            ray.type_wall_hit = WallOrientation::NS;
+            alignment = WallOrientation::NS;
         }
         // TBD: what about OneLoneCoder's max cast distance?
     }
 
-    // ray.wall.map_x = map_x;
-    // ray.wall.map_y = map_y;
+    ray.wall_hit.algnmt = alignment;
+    ray.wall_hit.tex_key = layout.tile(map_x, map_y);
 
     // Calculate distance to wall hit from camera plane, moving
     //   perpendicular to the camera plane. If the actual length of the
@@ -133,13 +133,23 @@ void DdaRaycastEngine::castRay(const uint16_t screen_x,
 
     // TBD: double check these
     if (settings.fisheye) {  // Euclidean ray distance from player_pos
-        ray.wall_dist = (ray.type_wall_hit == WallOrientation::EW) ?
+        ray.wall_hit.dist = (ray.wall_hit.algnmt == WallOrientation::EW) ?
             dist_next_unit_x : dist_next_unit_y;
     } else {                // perpendicular distance from camera plane
-        ray.wall_dist = (ray.type_wall_hit == WallOrientation::EW) ?
+        ray.wall_hit.dist = (ray.wall_hit.algnmt == WallOrientation::EW) ?
             dist_next_unit_x - dist_per_unit_x :
             dist_next_unit_y - dist_per_unit_y;
     }
+
+    // TBD: when calculating vector product of wall hit, double check naming of WallOrientation, may be reversed
+    // Translate coordinate vector of ray's wall hit (in map view, from "above")
+    //   into x coordinate in wall segment as seen from the perspective of a
+    //   player facing the wall.
+    ray.wall_hit.x = (ray.wall_hit.algnmt == WallOrientation::NS) ?
+            player_pos(0) + (ray.wall_hit.dist * ray.dir(0)) :
+            player_pos(1) + (ray.wall_hit.dist * ray.dir(1));
+    // Expressed as fraction of 1 grid unit (0.0 on the left)
+    ray.wall_hit.x -= std::floor(ray.wall_hit.x);
 }
 
 void DdaRaycastEngine::castRays(const Settings& settings) {

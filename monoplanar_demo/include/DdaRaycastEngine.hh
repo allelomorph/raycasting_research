@@ -10,12 +10,12 @@
 #include <vector>
 
 
-enum class WallOrientation { EW, NS };
+enum class WallOrientation { NS, EW };
 /*
 struct FovRay {
     Vector2d        dir;            // ray direction
     double          wall_dist;      // distance to first wall collision
-    WallOrientation type_wall_hit;  // EW or NS alignment of wall hit
+    WallOrientation type_wall_hit;  // NS or EW alignment of wall hit
     // TBD: SDL_Texture* wall_texture, or
     // TBD: uint16_t map_x, map_y
 };
@@ -24,7 +24,7 @@ struct FovRay {
 private:
     struct WallHit {
         double          dist { 0.0 };     // distance to first wall collision
-        WallOrientation algnmt;           // EW or NS alignment of wall hit
+        WallOrientation algnmt;           // NS or EW alignment of wall hit
         uint8_t         tex_key;          // layout.tile(map_x, map_y)
         double          x;                // when viewing grid tile as wall unit
                                           //   from player's perspective, x in

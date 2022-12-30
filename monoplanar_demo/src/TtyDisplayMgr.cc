@@ -46,7 +46,7 @@ void TtyDisplayMgr::renderAsciiPixelColumn(const uint16_t screen_x,
     // draw wall, shading NS walls darker to differentiate
     for (; screen_y < screen_line_end_y; ++screen_y, screen_px += screen_w) {
         screen_px->c =
-            (wall_hit_algnmt == WallOrientation::EW) ? '@' : '|';
+            (wall_hit_algnmt == WallOrientation::NS) ? '|' : '@';
     }
     // draw floor
     for (; screen_y < screen_buffer.h; ++screen_y, screen_px += screen_w)
@@ -83,7 +83,7 @@ void TtyDisplayMgr::render256ColorPixelColumn(const uint16_t screen_x,
         tex_y = (screen_y - ceiling_screen_y /*line_y*/) * tex_h_ratio;
         SDL_GetRGB(*(uint32_t*)(tex_px_data + (tex_y * tex_row_sz)),
                    tex_format, &r, &g, &b);
-        if (wall_hit_algnmt != WallOrientation::EW) {
+        if (wall_hit_algnmt == WallOrientation::NS) {
             r /= 2;
             g /= 2;
             b /= 2;
@@ -128,7 +128,7 @@ void TtyDisplayMgr::renderTrueColorPixelColumn(const uint16_t screen_x,
         tex_y = (screen_y - ceiling_screen_y /*line_y*/) * tex_h_ratio;
         SDL_GetRGB(*(uint32_t*)(tex_px_data + (tex_y * tex_row_sz)),
                    tex_format, &r, &g, &b);
-        if (wall_hit_algnmt != WallOrientation::EW) {
+        if (wall_hit_algnmt == WallOrientation::NS) {
             r /= 2;
             g /= 2;
             b /= 2;
@@ -173,8 +173,8 @@ void TtyDisplayMgr::renderPixelColumn(const uint16_t screen_x,
     SDL_Surface* texture { wall_textures.at(ray.wall_hit.tex_key).get() };
     uint16_t tex_x ( ray.wall_hit.x * texture->w );
     // ensure texture x of 0 is always to the left when facing the wall segment
-    if ((ray.wall_hit.algnmt == WallOrientation::EW && ray.dir(0) > 0) ||
-        (ray.wall_hit.algnmt == WallOrientation::NS && ray.dir(1) < 0) ) {
+    if ((ray.wall_hit.algnmt == WallOrientation::NS && ray.dir(0) > 0) ||
+        (ray.wall_hit.algnmt == WallOrientation::EW && ray.dir(1) < 0) ) {
         tex_x = texture->w - tex_x - 1;
     }
 

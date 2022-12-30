@@ -98,11 +98,11 @@ void DdaRaycastEngine::castRay(const uint16_t screen_x,
         if (dist_next_unit_x < dist_next_unit_y) {
             dist_next_unit_x += dist_per_unit_x;
             map_x += map_step_x;
-            alignment = WallOrientation::EW;
+            alignment = WallOrientation::NS;
         } else {
             dist_next_unit_y += dist_per_unit_y;
             map_y += map_step_y;
-            alignment = WallOrientation::NS;
+            alignment = WallOrientation::EW;
         }
         // TBD: what about OneLoneCoder's max cast distance?
     }
@@ -133,10 +133,10 @@ void DdaRaycastEngine::castRay(const uint16_t screen_x,
 
     // TBD: double check these
     if (settings.fisheye) {  // Euclidean ray distance from player_pos
-        ray.wall_hit.dist = (ray.wall_hit.algnmt == WallOrientation::EW) ?
+        ray.wall_hit.dist = (ray.wall_hit.algnmt == WallOrientation::NS) ?
             dist_next_unit_x : dist_next_unit_y;
     } else {                // perpendicular distance from camera plane
-        ray.wall_hit.dist = (ray.wall_hit.algnmt == WallOrientation::EW) ?
+        ray.wall_hit.dist = (ray.wall_hit.algnmt == WallOrientation::NS) ?
             dist_next_unit_x - dist_per_unit_x :
             dist_next_unit_y - dist_per_unit_y;
     }
@@ -145,7 +145,7 @@ void DdaRaycastEngine::castRay(const uint16_t screen_x,
     // Translate coordinate vector of ray's wall hit (in map view, from "above")
     //   into x coordinate in wall segment as seen from the perspective of a
     //   player facing the wall.
-    ray.wall_hit.x = (ray.wall_hit.algnmt == WallOrientation::NS) ?
+    ray.wall_hit.x = (ray.wall_hit.algnmt == WallOrientation::EW) ?
             player_pos(0) + (ray.wall_hit.dist * ray.dir(0)) :
             player_pos(1) + (ray.wall_hit.dist * ray.dir(1));
     // Expressed as fraction of 1 grid unit (0.0 on the left)

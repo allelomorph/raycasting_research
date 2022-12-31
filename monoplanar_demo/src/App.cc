@@ -1,14 +1,16 @@
 #include "App.hh"
-#include "safeCExec.hh"      // C_*
-#include "safeSdlExec.hh"    // SDL_RETURN_TEST
-#include "Xterm.hh"          // CtrlSeqs
+#include "safeCExec.hh"       // C_*
+#include "safeSdlExec.hh"     // SDL_RETURN_TEST
+#include "Xterm.hh"           // CtrlSeqs
 #include "LinuxKbdInputMgr.hh"
-//#include "SdlKbdInputMgr.hh"
+#include "SdlKbdInputMgr.hh"
 
-#include <SDL2/SDL.h>        // SDL_Init SDL_Quit
+#include <SDL2/SDL.h>         // SDL_Init SDL_Quit
+#include <SDL2/SDL_events.h>  // SDL_QUIT SDL_KEY* SDL_PollEvent
+#include <SDL2/SDL_video.h>   // SDL_GetWindowID SDL_WINDOWEVENT_*
 
-#include <csignal>           // sigaction SIG* sig_atomic_t
-#include <cstring>           // memset
+#include <csignal>            // sigaction SIG* sig_atomic_t
+#include <cstring>            // memset
 
 
 // Need to be global to be visible to sigaction
@@ -63,13 +65,14 @@ void App::initialize() {
     raycast_engine.updateScreenSize(display_mgr.screenWidth());
     // parse map file to get maze and starting actor positions
     raycast_engine.loadMapFile(map_filename);
-/*
-    kbd_input_mgr = tty_io ?
-        std::unique_ptr<LinuxKbdInputMgr>(new LinuxKbdInputMgr(exec_filename)) :
-        std::unique_ptr<SdlKbdInputMgr>(new SdlKbdInputMgr());
-*/
-    kbd_input_mgr = std::unique_ptr<LinuxKbdInputMgr>(
-        new LinuxKbdInputMgr(exec_filename) );
+
+    if (tty_io) {
+        kbd_input_mgr = std::unique_ptr<LinuxKbdInputMgr>(
+            new LinuxKbdInputMgr(exec_filename));
+    } else {
+        kbd_input_mgr = std::unique_ptr<SdlKbdInputMgr>(
+            new SdlKbdInputMgr());
+    }
 }
 
 void App::run() {
@@ -81,7 +84,7 @@ void App::run() {
         rt_fps_calc.calculate();
 
         getEvents();
-        updateState();
+        updateFromInput();
 
         if (tty_io && sigwinch_received) {
             display_mgr.clearDisplay();
@@ -119,12 +122,43 @@ void App::getEvents() {
     if (tty_io) {
         kbd_input_mgr->consumeKeyEvents();
     } else {
+        SDL_Event e;
+        while (SDL_PollEvent(&e)) {
+            switch(e.type) {
+            case SDL_QUIT:
+                stop = true;
+                break;
+            case SDL_WINDOWEVENT:
+                // SDL_AddEventWatch not appopropriate for window size changes
+                //   due to filter function's possible execution in a separate
+                //   thread: modification of the display buffer size asynchronous
+                //   to pixel getting/setting would likely cause segfaults
+                // if (e.window.event == SDL_WINDOWEVENT_RESIZED &&
+                //     e.window.windowID == safeSdlExec(
+                //         SDL_GetWindowID, "SDL_GetWindowID",
+                //         SDL_RETURN_TEST(int, ret == 0),
+                //         display_mgr.window.get()) )
+                //     display_mgr->fitToWindow();
+                break;
+            case SDL_KEYDOWN | SDL_KEYUP:
+                kbd_input_mgr->consumeKeyEvent(e.key);
+                break;
+            default:
+                break;
+            }
+        }
     }
 }
 
-// TBD: given that there is no alignment between SDLK_* and KEY_*, need to split
-//   function into updateFromLinuxKbdInput and updateFromSdlKbdInput
-void App::updateState() {
+void App::updateFromInput() {
+    if (tty_io) {
+        updateFromLinuxInput();
+    } else {
+        updateFromSdlInput();
+    }
+}
+
+void App::updateFromLinuxInput() {
     // ctrl+c: simulate SIGINT (quit)
     if ((kbd_input_mgr->isPressed(KEY_LEFTCTRL) ||
          kbd_input_mgr->isPressed(KEY_RIGHTCTRL)) &&
@@ -142,9 +176,6 @@ void App::updateState() {
     double move_speed { pt_fps_calc.frame_duration_mvg_avg * settings.base_movement_rate };
     double rot_speed  { pt_fps_calc.frame_duration_mvg_avg *
                         settings.base_movement_rate * settings.turn_rate };
-
-    // Movement in the 2d map grid has been set up so +y/+i with map[i][j]/up on a
-    //   printed map all represent moving north
 
     // shift key: run
     if (kbd_input_mgr->isPressed(KEY_LEFTSHIFT) ||
@@ -216,6 +247,81 @@ void App::updateState() {
         // erase potential leftover chars from ascii mode
         display_mgr.resetBuffer();
     }
+
+    kbd_input_mgr->decayToAutorepeat();
+}
+
+void App::updateFromSdlInput() {
+    // ctrl+c: simulate SIGINT (quit)
+    if ((kbd_input_mgr->isPressed(SDLK_LCTRL) ||
+         kbd_input_mgr->isPressed(SDLK_RCTRL)) &&
+        kbd_input_mgr->isPressed(SDLK_c)) {
+        stop = true;
+        return;
+    }
+
+    // escape key: quit
+    if (kbd_input_mgr->isPressed(SDLK_ESCAPE)) {
+        stop = true;
+        return;
+    }
+
+    double move_speed { pt_fps_calc.frame_duration_mvg_avg * settings.base_movement_rate };
+    double rot_speed  { pt_fps_calc.frame_duration_mvg_avg *
+                        settings.base_movement_rate * settings.turn_rate };
+
+    // shift key: run
+    if (kbd_input_mgr->isPressed(SDLK_LSHIFT) ||
+        kbd_input_mgr->isPressed(SDLK_RSHIFT)) {
+        move_speed *= 2;
+        rot_speed *= 2;
+    }
+
+    // up arrow key: move forward
+    if (kbd_input_mgr->isPressed(SDLK_UP))
+        raycast_engine.playerMoveFwd(move_speed);
+
+    // down arrow key: move backward
+    if (kbd_input_mgr->isPressed(SDLK_DOWN))
+        raycast_engine.playerMoveBack(move_speed);
+
+    if (kbd_input_mgr->isPressed(SDLK_LEFT)) {
+        if (kbd_input_mgr->isPressed(SDLK_LALT) ||
+            kbd_input_mgr->isPressed(SDLK_RALT)) {
+            // alt + left arrow key: move left (strafe)
+            raycast_engine.playerStrafeLeft(move_speed);
+        } else {
+            // left arrow key: rotate left (CCW)
+            raycast_engine.playerTurnLeft(rot_speed);
+        }
+    }
+
+    if (kbd_input_mgr->isPressed(SDLK_RIGHT)) {
+        if (kbd_input_mgr->isPressed(SDLK_LALT) ||
+            kbd_input_mgr->isPressed(SDLK_RALT)) {
+            // alt + right arrow key: move right (strafe)
+            raycast_engine.playerStrafeRight(move_speed);
+        } else {
+            // right arrow key: roatate right (CW)
+            raycast_engine.playerTurnRight(rot_speed);
+        }
+    }
+
+    // F1 key: toggle FPS overlay
+    if (kbd_input_mgr->keyDownThisFrame(SDLK_F1))
+        settings.show_fps = !settings.show_fps;
+
+    // F2 key: toggle map overlay
+    if (kbd_input_mgr->keyDownThisFrame(SDLK_F2))
+        settings.show_map = !settings.show_map;
+
+    // F3 key: toggle debug mode
+    if (kbd_input_mgr->keyDownThisFrame(SDLK_F3))
+        settings.debug_mode = !settings.debug_mode;
+
+    // F4 key: toggle fisheye camera mode
+    if (kbd_input_mgr->keyDownThisFrame(SDLK_F4))
+        settings.fisheye = !settings.fisheye;
 
     kbd_input_mgr->decayToAutorepeat();
 }

@@ -64,7 +64,20 @@ private:
     void initialize();
 
     void getEvents();
-    void updateState();
+
+    // TBD: while kbd_input_mgr is polymorphic, given that there is no alignment
+    //   between SDLK_* and KEY_* keycode values, short of creating isPressed()
+    //   functions for every supported key, there need to be separate
+    //   updateFromInput functions to check the different keysym sets
+    // TBD: also, while it is another addition to per-frame computation to check
+    //   tty_io every call of updateFromInput, this still seems preferable to
+    //   checking tty_io once to set a function pointer `void (App::*fp)();` to
+    //   updateFromLinuxInput or updateFromSdlInput, as every time fp is called,
+    //   it would require THREE pointer dereferences: `(this->*(this->fp))()`, see:
+    //   https://stackoverflow.com/questions/2402579/function-pointer-to-member-function
+    void updateFromInput();
+    void updateFromLinuxInput();
+    void updateFromSdlInput();
 };
 
 

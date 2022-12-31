@@ -11,10 +11,11 @@
 // polymorphic interface to LinuxKbdInputMgr, SdlKbdInputMgr
 class KbdInputMgr {
 protected:
-    // map keys are either linux/input.h:input_event.code or SDL_keycode
+    // map keys are either linux/input.h:input_event.code (__u16) or SDL_keycode (Sint32)
     std::unordered_map<int32_t, KeyState> key_states;
 
 public:
+    // polymorphic classes need virtual dtor
     virtual ~KbdInputMgr() {}
 
     // TBD: Having both consume event functions here is an unresolved
@@ -31,11 +32,16 @@ public:
     virtual void consumeKeyEvents() {}
     virtual void consumeKeyEvent(const SDL_KeyboardEvent& /*ev*/) {}
 
-    virtual bool keyDownThisFrame(const int32_t code) = 0;
-    virtual bool isPressed(const int32_t code) = 0;
-    virtual bool isReleased(const int32_t code) = 0;
+    virtual bool keyDownThisFrame(const int32_t code);
+    virtual bool isPressed(const int32_t code);
+    virtual bool isReleased(const int32_t code);
 
-    virtual void decayToAutorepeat() = 0;
+    // Game frames may pass between consuming a key press event and its first
+    //   autorepeat event; so to maintain the distinction between a key being
+    //   pressed and a key being held down at frame granularity, this can be
+    //   used to mark any keys pressed this frame as held (repeating) at the
+    //   end of that frame
+    virtual void decayToAutorepeat();
 };
 
 

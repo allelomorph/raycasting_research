@@ -38,13 +38,12 @@ SRC_HEADERS = $(addprefix $(INCLUDE_DIR), \
 	LinuxKbdInputMgr.hh \
 	TtyDisplayMgr.hh \
 	TtyScreenBuffer.hh \
-	sdl_unique_ptrs.hh )
+	sdl_unique_ptrs.hh \
+	SdlKbdInputMgr.hh )
 #   SdlDisplayMgr.hh_ \
-#   SdlKbdInputMgr.hh_ \
 #   DisplayMgr.hh_ \
 #   SdlScreenBuffer.hh_
 HDR_ONLY_SRC = $(addprefix $(INCLUDE_DIR), \
-	KbdInputMgr.hh \
 	KeyState.hh \
 	Matrix.hh \
 	Settings.hh )
@@ -59,15 +58,16 @@ SRC          = $(addprefix $(SRC_DIR), \
 	App.cc \
 	DdaRaycastEngine.cc \
 	FpsCalc.cc \
+	KbdInputMgr.cc \
 	Layout.cc \
 	LinuxKbdInputMgr.cc \
+	sdl_unique_ptrs.cc \
+	SdlKbdInputMgr.cc \
 	TtyDisplayMgr.cc \
-	TtyScreenBuffer.cc \
-	sdl_unique_ptrs.cc ) \
+	TtyScreenBuffer.cc ) \
 		$(addprefix $(UTILS_DIR), \
 	Xterm.cc ) \
 	main.cc
-#   src/SdlKbdInputMgr.cc_
 #   utils/errnoname.c
 
 OBJ = $(UTILS_DIR)errnoname.o $(SRC:.cc=.o)

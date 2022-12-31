@@ -48,17 +48,6 @@ public:
 
     // See notes on consume key functions in parent class
     void consumeKeyEvents();
-
-    bool keyDownThisFrame(const int32_t code);
-    bool isPressed(const int32_t code);
-    bool isReleased(const int32_t code);
-
-    // Game frames may pass between consuming a key press event and its first
-    //   autorepeat event; so to maintain the distinction between a key being
-    //   pressed and a key being held down at frame granularity, this can be
-    //   used to mark any keys pressed this frame as held (repeating) at the
-    //   end of that frame
-    void decayToAutorepeat();
 };
 
 

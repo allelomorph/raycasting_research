@@ -318,33 +318,3 @@ void LinuxKbdInputMgr::consumeKeyEvents() {
             ks_it->second.update(ev[i].value);  // should be in KeyValue range
     }
 }
-
-bool LinuxKbdInputMgr::keyDownThisFrame(const int32_t keysym) {
-    // remember that operator[] inserts a new key if not found
-    auto ks_it { key_states.find(keysym) };
-    if (ks_it != key_states.end())
-        return (ks_it->second.keyDownThisFrame());
-    return false;
-}
-
-bool LinuxKbdInputMgr::isPressed(const int32_t keysym) {
-    // remember that operator[] inserts a new key if not found
-    auto ks_it { key_states.find(keysym) };
-    if (ks_it != key_states.end())
-        return (ks_it->second.isPressed());
-    return false;
-}
-
-bool LinuxKbdInputMgr::isReleased(const int32_t keysym) {
-    // remember that operator[] inserts a new key if not found
-    auto ks_it { key_states.find(keysym) };
-    if (ks_it != key_states.end())
-        return (ks_it->second.isReleased());
-    return true;
-}
-
-void LinuxKbdInputMgr::decayToAutorepeat() {
-    for (auto& pair : key_states) {
-        pair.second.decayToAutorepeat();
-    }
-}

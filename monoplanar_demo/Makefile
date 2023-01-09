@@ -30,10 +30,9 @@ MP_FILE_STEMS := \
 	TtyDisplayMgr \
 	TtyScreenBuffer \
 	sdl_unique_ptrs \
+	SdlDisplayMgr \
 	SdlKbdInputMgr
-#   SdlDisplayMgr_ \
 #   DisplayMgr_ \
-#   SdlScreenBuffer_
 
 PATHLESS_MP_SRC         := $(addsuffix .cc, $(MP_FILE_STEMS))
 PATHLESS_MP_SRC_HEADERS := $(addsuffix .hh, $(MP_FILE_STEMS))
@@ -52,7 +51,7 @@ UTIL_HEADERS   := $(addprefix $(UTILS_DIR), \
 	Xterm.hh )
 HEADERS        := $(MP_SRC_HEADERS) $(MP_HEADER_ONLY) $(UTIL_HEADERS)
 
-SRC            := $(MP_SRC) $(UTILS_DIR)Xterm.cc main.cc $(UTILS_DIR)errnoname.c
+SRC            := $(MP_SRC) $(UTILS_DIR)Xterm.cc main.cc
 
 #
 # compilation flags usable in implicit rules

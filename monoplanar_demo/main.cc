@@ -116,17 +116,10 @@ int main(int argc, char* const argv[]) {
         return (EXIT_FAILURE);
     }
 
-    // TBD: currently defaults to tty, eventually to SDL
     if (io_mode == IoMode::Uninitialized)
-        io_mode = IoMode::Tty;
+        io_mode = IoMode::Sdl;
     if (io_mode == IoMode::Tty && tty_display_mode == TtyDisplayMode::Uninitialized)
         tty_display_mode = TtyDisplayMode::Ascii;
-
-    // TBD: remove
-    if (io_mode == IoMode::Sdl) {
-        std::cerr << argv[0] << ": mode not implemented yet!" << std::endl;
-        return (EXIT_FAILURE);
-    }
 
     // TBD: wrap in try/except to do emergency cleanup on throwing
     //   (eg ungrab keyboard device and ensure cursor is not hidden when in tty mode)

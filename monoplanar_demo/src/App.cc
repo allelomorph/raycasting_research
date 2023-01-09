@@ -31,8 +31,8 @@ App::App(const char* efn, const std::string& mfn,
     if (tty_io)
         settings.tty_display_mode = tty_display_mode;
 
-    // When in tty I/O mode, SDL subsystems only used for error reporting on
-    //   failure of wall textures loading
+    // tty I/O mode uses SDL subsystems to report errors in case of IMG_Load
+    //   failure when loading wall textures, so we init regardless
     safeSdlExec(SDL_Init, "SDL_Init", SDL_RETURN_TEST(int, ret != 0),
                 tty_io ? 0 : SDL_INIT_VIDEO);
 }
@@ -61,10 +61,14 @@ void App::initialize() {
     safeCExec(sigaction, "sigaction", C_RETURN_TEST(int, (ret == -1)),
               SIGWINCH, &sa, nullptr);
 
-    display_mgr.initialize(settings);
-    raycast_engine.updateScreenSize(display_mgr.screenWidth());
     // parse map file to get maze and starting actor positions
     raycast_engine.loadMapFile(map_filename);
+    //raycast_engine.player_dir << 0, 1;
+    //raycast_engine.view_plane << 0.666666, 0;
+    // TBD: temp passing of layout dims
+    display_mgr.initialize(settings,
+                           raycast_engine.layout.w, raycast_engine.layout.h);
+    raycast_engine.fitToWindow(display_mgr.window_w, display_mgr.window_h);
 
     if (tty_io) {
         kbd_input_mgr = std::unique_ptr<LinuxKbdInputMgr>(
@@ -91,8 +95,12 @@ void App::run() {
             // terminal window size changes require rehiding the cursor
             std::cout << Xterm::CtrlSeqs::HideCursor();
 
-            display_mgr.fitToWindow(settings.map_proportion);
-            raycast_engine.updateScreenSize(display_mgr.screenWidth());
+            // TBD: passing layout dims only while using old-style map HUD
+            display_mgr.fitToWindow(settings.map_proportion,
+                                    raycast_engine.layout.w,
+                                    raycast_engine.layout.h);
+            raycast_engine.fitToWindow(display_mgr.window_w,
+                                       display_mgr.window_h);
 
             sigwinch_received = 0;
         }
@@ -100,7 +108,8 @@ void App::run() {
         raycast_engine.castRays(settings);
 
         display_mgr.renderView(raycast_engine.fov_rays, settings);
-        display_mgr.renderMap(raycast_engine);
+        if (settings.show_map)
+            display_mgr.renderMap(raycast_engine);
         display_mgr.renderHUD(pt_fps_calc.frame_duration_mvg_avg,
                               rt_fps_calc.frame_duration_mvg_avg.count(),
                               settings, raycast_engine, kbd_input_mgr);
@@ -133,14 +142,21 @@ void App::getEvents() {
                 //   due to filter function's possible execution in a separate
                 //   thread: modification of the display buffer size asynchronous
                 //   to pixel getting/setting would likely cause segfaults
-                // if (e.window.event == SDL_WINDOWEVENT_RESIZED &&
-                //     e.window.windowID == safeSdlExec(
-                //         SDL_GetWindowID, "SDL_GetWindowID",
-                //         SDL_RETURN_TEST(int, ret == 0),
-                //         display_mgr.window.get()) )
-                //     display_mgr->fitToWindow();
+                if (e.window.event == SDL_WINDOWEVENT_RESIZED &&
+                    e.window.windowID == display_mgr.getWindowId() ) {
+                    // TBD: temporary version of fitToWindow
+                    display_mgr.fitToWindow(settings.map_proportion,
+                                            raycast_engine.layout.w,
+                                            raycast_engine.layout.h);
+                    raycast_engine.fitToWindow(display_mgr.window_w,
+                                               display_mgr.window_h);
+                }
                 break;
-            case SDL_KEYDOWN | SDL_KEYUP:
+            case SDL_KEYDOWN:
+            case SDL_KEYUP:
+                // std::cout << "keysym:" << (int)(e.key.keysym.sym) <<
+                //     " state: " << (int)(e.key.state) <<
+                //     " reapeat: " << (int)(e.key.repeat) << std::endl;
                 kbd_input_mgr->consumeKeyEvent(e.key);
                 break;
             default:

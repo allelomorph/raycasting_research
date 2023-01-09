@@ -1,6 +1,7 @@
 #include "DdaRaycastEngine.hh"
 
 #include <cstdint>
+#include <cmath>     // cos, sin, sqrt
 
 
 Vector2d DdaRaycastEngine::rotateVector2d(const Vector2d& vec,
@@ -20,20 +21,19 @@ Vector2d DdaRaycastEngine::rotateVector2d(const Vector2d& vec,
     };
 }
 
-DdaRaycastEngine::DdaRaycastEngine() {
-    // Starting direction vector is a bit longer than the camera plane, so
-    //   the FOV will be smaller than 90° (more precisely, the FOV is
-    //   2 * atan(0.66 (magnitude of view_plane) / 1.0 (magnitude of
-    //   player_dir)), or 66°.
-    // Both magnitudes could change provided they stay in proportion, but
-    //   here for convenience we make the direction a unit vector.
-    player_dir << 0, 1;
-    view_plane << 2.0/3, 0;
-}
-
-void DdaRaycastEngine::updateScreenSize(const uint16_t w) {
+void DdaRaycastEngine::fitToWindow(const uint16_t w, const uint16_t h) {
     screen_w = w;
     fov_rays.resize(screen_w);
+
+    // widen FOV to match aspect ratio to always render square-looking wall units
+    double curr_aspect_ratio { double(w) / h };
+    double target_view_plane_mag { curr_aspect_ratio / ASPECT_RATIO_TO_VIEW_PLANE_MAG_RATIO };
+    double curr_view_plane_mag { std::sqrt(
+            (view_plane(0) * view_plane(0)) +
+            (view_plane(1) * view_plane(1)) ) };
+    double target_vpm_to_curr_vpm_ratio { target_view_plane_mag / curr_view_plane_mag };
+    view_plane(0) *= target_vpm_to_curr_vpm_ratio;
+    view_plane(1) *= target_vpm_to_curr_vpm_ratio;
 }
 
 void DdaRaycastEngine::castRay(const uint16_t screen_x,
@@ -141,7 +141,6 @@ void DdaRaycastEngine::castRay(const uint16_t screen_x,
             dist_next_unit_y - dist_per_unit_y;
     }
 
-    // TBD: when calculating vector product of wall hit, double check naming of WallOrientation, may be reversed
     // Translate coordinate vector of ray's wall hit (in map view, from "above")
     //   into x coordinate in wall segment as seen from the perspective of a
     //   player facing the wall.

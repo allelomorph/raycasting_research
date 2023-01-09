@@ -6,7 +6,8 @@
 #include "KbdInputMgr.hh"
 #include "DdaRaycastEngine.hh"
 // #include "DisplayMgr.hh"
-#include "TtyDisplayMgr.hh"
+// #include "TtyDisplayMgr.hh"
+#include "SdlDisplayMgr.hh"
 
 #include <csignal>               // sig_atomic_t
 #include <cstdint>               // uint16_t
@@ -59,7 +60,7 @@ private:
 
     // display
     //
-    TtyDisplayMgr                display_mgr;
+    SdlDisplayMgr                display_mgr;
 
     void initialize();
 

@@ -44,25 +44,33 @@ private:
     // rotate Vector counterclockwise around origin
     Vector2d rotateVector2d(const Vector2d& vec, const double radians);
 
+    // used to set FOV from window aspect ratio to maintain square wall units
+    //   in rendered view (calibrated from reference (627w:480h):0.666666 =
+    //   1.959375, rounded up as calibration was by eye)
+    static constexpr double ASPECT_RATIO_TO_VIEW_PLANE_MAG_RATIO { 2 };
+
 public:
     // position vector (player x and y coordinates on map grid)
     Vector2d player_pos;
     // direction vector (represented as line segment on map grid from player
-    //   position to midpoint of view plane)
-    Vector2d player_dir;
+    //   position to midpoint of view plane; always unit vector; begins facing north)
+    Vector2d player_dir { 0, 1 };
     // The view/camera plane is the "window" through which the player sees the
     //   world, and in the map grid, is represented as a line segment that is
     //   perpendicular to and bisected by the direction vector.
     // Using vector operations, the camera plane could be said to run from
     //   (pos + dir - view_plane) on the player's left, intersect with dir at
     //   (pos + dir), and end at the player's right with (pos + dir + view_plane)
-    // The ratio of the lengths of the direction vector and the camera plane
-    //   determines the FOV angle, so unless the desire is to change the FOV,
-    //   they must change together proportionally. FOV can be calculated with
-    //   2 * atan(view_plane length/dir length).
-    // When the player rotates, the values of dir and plane will be changed,
-    //   but should always remain perpendicular and of constant length.
-    Vector2d view_plane;
+    // The ratio of magnitudes of the direction vector and the camera plane
+    //   determines the FOV angle, calculated with 2 * atan(magnitude of
+    //   view_plane) / magnitude of player_dir, or just 2 * atan(magnitude of
+    //   view_plane), as player_dir should always be a unit vector.
+    // When the player rotates, player_dir and view_plane should always remain
+    //   perpendicular and of constant magnitude.
+    Vector2d view_plane { 1, 0 };
+
+    // view_plane << 0.66666, 0;  // orig
+    // view_plane << 0.90696, 0;  // square walls
 
     uint16_t screen_w;
     // float fov_angle;
@@ -70,9 +78,8 @@ public:
 
     Layout layout;
 
-    DdaRaycastEngine();
+    void fitToWindow(const uint16_t w, const uint16_t h);
 
-    void updateScreenSize(const uint16_t w);
     inline void loadMapFile(const std::string& map_filename) {
         layout.loadMapFile(map_filename, player_pos);
     }

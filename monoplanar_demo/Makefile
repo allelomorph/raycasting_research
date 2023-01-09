@@ -102,8 +102,10 @@ OBJ := $(SRC:.cc=.o) $(UTILS_DIR)errnoname.o
 monoplanar_demo: $(HEADERS) $(OBJ)
 	$(CXX) -o $@ $(OBJ) $(LDLIBS)
 
+EMACS_AUTOSAVES := *~ $(SRC_DIR)*~ $(INCLUDE_DIR)*~ $(UTILS_DIR)*~
+
 clean:
-	$(RM) *~ monoplanar_demo
+	$(RM) $(EMACS_AUTOSAVES) monoplanar_demo
 
 oclean:
 	$(RM) $(OBJ)
@@ -138,7 +140,7 @@ monoplanar_demo_gprof: $(HEADERS) $(GPROF_OBJ)
 	$(CXX) $(PROF_FLAG) -o $@ $(GPROF_OBJ) $(LDLIBS)
 
 gprof_clean:
-	$(RM) *~ monoplanar_demo_gprof
+	$(RM) $(EMACS_AUTOSAVES) monoplanar_demo_gprof
 
 gprof_oclean:
 	$(RM) $(GPROF_OBJ)
@@ -173,7 +175,7 @@ monoplanar_demo_gdb: $(HEADERS) $(GDB_OBJ)
 	$(CXX) $(DEBUG_FLAG) -o $@ $(GDB_OBJ) $(LDLIBS)
 
 gdb_clean:
-	$(RM) *~ monoplanar_demo_gdb
+	$(RM) $(EMACS_AUTOSAVES) monoplanar_demo_gdb
 
 gdb_oclean:
 	$(RM) $(GDB_OBJ)

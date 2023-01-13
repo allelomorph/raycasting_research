@@ -1,4 +1,6 @@
 #include "App.hh"
+#include "WindowMgr.hh"
+#include "SdlWindowMgr.hh"
 #include "Settings.hh"     // TtyDisplayMode
 
 #include <getopt.h>        // option getopt_long optind
@@ -6,6 +8,14 @@
 
 #include <iostream>
 #include <string>
+
+
+// static contexpr class members in C++11 require definition outside of the
+//   class, doing so here in main follows ODR
+constexpr std::array<const char*, 10> WindowMgr::wall_tex_paths;
+
+constexpr char SdlWindowMgr::SKY_TEX_PATH[];
+constexpr char SdlWindowMgr::FONT_PATH[];
 
 
 enum class IoMode  { Uninitialized, Tty, Sdl };
@@ -24,8 +34,8 @@ static void printUsage(const char *exec_filename) {
         "\t\t\t (requires running as root user or as member of input group)\n" <<
         "\t\t\t ttymode determines pixel rendering as:\n" <<
         "\t\t\t   ascii: monochrome characters (default)\n" <<
-        "\t\t\t   256color/colorcode/1byte: terminal background colors (256 color mode)\n" <<
-        "\t\t\t   truecolor/rgb/3byte: terminal background colors (true (RGB) color mode)\n" <<
+        "\t\t\t   code/256color/1byte: terminal background colors (256 color mode)\n" <<
+        "\t\t\t   rgb/truecolor/3byte: terminal background colors (true (RGB) color mode)\n" <<
         std::endl;
 }
 
@@ -33,7 +43,7 @@ static int getOptions(int argc, char* const argv[],
                       std::string& map_filename, IoMode& io_mode,
                       TtyDisplayMode& tty_display_mode) {
     // colon after opt char signifies that it takes an arg
-    constexpr char optstring[] { "Xtm:" };
+    constexpr char optstring[] { "Xt::m:" };
     constexpr struct option long_options[] {
         {"SDL",     no_argument,       nullptr,  'X' },
         {"tty",     optional_argument, nullptr,  't' },
@@ -61,16 +71,18 @@ static int getOptions(int argc, char* const argv[],
                 return 1;
             }
             io_mode = IoMode::Tty;
+            // if `-t=`(arg), need to trim leading '='
+            char* trimmed_optarg { (optarg && optarg[0] == '=') ? optarg + 1 : optarg };
             // string from nullptr is undefined behavior
-            std::string optarg_s { optarg ? optarg : "" };
+            std::string optarg_s { trimmed_optarg ? trimmed_optarg : "" };
             for (auto& c : optarg_s)
                 c = std::tolower(c);
             if (optarg_s == "ascii") {
                 tty_display_mode = TtyDisplayMode::Ascii;
-            } else if (optarg_s == "256color" || optarg_s == "colorcode" ||
+            } else if (optarg_s == "code" || optarg_s == "256color" ||
                 optarg_s == "1byte") {
                 tty_display_mode = TtyDisplayMode::ColorCode;
-            } else if (optarg_s == "truecolor" || optarg_s == "rgb" ||
+            } else if (optarg_s == "rgb" || optarg_s == "truecolor" ||
                        optarg_s == "3byte") {
                 tty_display_mode = TtyDisplayMode::TrueColor;
             } else if (optarg_s != "") {

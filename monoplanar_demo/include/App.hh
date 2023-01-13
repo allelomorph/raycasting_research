@@ -5,9 +5,9 @@
 #include "Settings.hh"           // TtyDisplayMode
 #include "KbdInputMgr.hh"
 #include "DdaRaycastEngine.hh"
-// #include "DisplayMgr.hh"
-// #include "TtyDisplayMgr.hh"
-#include "SdlDisplayMgr.hh"
+#include "WindowMgr.hh"
+#include "TtyWindowMgr.hh"
+#include "SdlWindowMgr.hh"
 
 #include <csignal>               // sig_atomic_t
 #include <cstdint>               // uint16_t
@@ -58,9 +58,10 @@ private:
     //
     DdaRaycastEngine             raycast_engine;
 
-    // display
+    // video output
     //
-    SdlDisplayMgr                display_mgr;
+    // pointer for polymorphism with tty and SDL mode child classes
+    std::unique_ptr<WindowMgr>   window_mgr;
 
     void initialize();
 

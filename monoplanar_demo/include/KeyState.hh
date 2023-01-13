@@ -37,15 +37,15 @@ public:
         }
     }
 
-    inline bool keyDownThisFrame() {
+    inline bool keyDownThisFrame() const {
         return (pressed && !repeat);
     }
 
-    inline bool isPressed() {
+    inline bool isPressed() const {
         return (pressed);
     }
 
-    inline bool isReleased() {
+    inline bool isReleased() const {
         return (!pressed);
     }
 

@@ -1,4 +1,4 @@
-#include "SdlDisplayMgr.hh"
+#include "SdlWindowMgr.hh"
 #include "safeSdlExec.hh"      // SDL_RETURN_TEST
 #include "sdl_unique_ptrs.hh"  // *UnqPtr
 
@@ -12,7 +12,7 @@
 #include <cassert>
 
 
-void SdlDisplayMgr::makeGlyphs(const char* font_filename) {
+void SdlWindowMgr::makeGlyphs(const char* font_filename) {
     // reference for font size ratio is 16pt on 480p window, or 1/30 window_h
     SdlTtfFontUnqPtr font (
         safeSdlExec(TTF_OpenFont, "TTF_OpenFont",
@@ -40,126 +40,14 @@ void SdlDisplayMgr::makeGlyphs(const char* font_filename) {
     }
 }
 
-SdlDisplayMgr::SdlDisplayMgr() {
-    // SDL_Init in App()
-    // image subsystem for texture loading
-    safeSdlExec(IMG_Init, "IMG_Init", SDL_RETURN_TEST(int, (ret == 0)),
-                IMG_INIT_JPG);
-    // tff font subsystem for fps text
-    safeSdlExec(TTF_Init, "TTF_Init", SDL_RETURN_TEST(int, (ret == -1)) );
-}
-
-SdlDisplayMgr::~SdlDisplayMgr() {
-    TTF_Quit();
-    IMG_Quit();
-    // SDL_Quit in ~App()
-}
-
-void SdlDisplayMgr::initialize(const Settings& settings,
-                               const uint16_t layout_w, const uint16_t layout_h) {
-
-    //
-    // init window and window buffer
-    //
-    window = SdlWindowUnqPtr(
-        safeSdlExec(SDL_CreateWindow, "SDL_CreateWindow",
-                    SDL_RETURN_TEST(SDL_Window*, ret == nullptr),
-                    "monoplanar raycast demo" /*name*/,
-                    SDL_WINDOWPOS_CENTERED /*x*/, SDL_WINDOWPOS_CENTERED /*y*/,
-                    WINDOW_WIDTH, WINDOW_HEIGHT,
-                    SDL_WINDOW_RESIZABLE /*flags*/),
-        window_deleter);
-
-    // TBD: can we set the renderer blendmode once instead of individual texture
-    //   blendmodes? SDL_SetRenderDrawBlendMode(renderer.get(), SDL_BLENDMODE_BLEND)
-    //   ( == 0 on success)
-    renderer = SdlRendererUnqPtr(
-        safeSdlExec(SDL_CreateRenderer, "SDL_CreateRenderer",
-                    SDL_RETURN_TEST(SDL_Renderer*, ret == nullptr),
-                    window.get(), -1 /*driver index (first to support flags)*/,
-                    SDL_RENDERER_ACCELERATED /*flags*/),
-        renderer_deleter);
-
-    // also populates font cache textures
-    fitToWindow(settings.map_proportion, layout_w, layout_h);
-
-    //
-    // init textures other than font cache
-    //
-    SdlSurfaceUnqPtr sky_surface (
-        safeSdlExec(IMG_Load, "IMG_Load",
-                    SDL_RETURN_TEST(SDL_Surface*, (ret == nullptr)),
-                    SKY_TEXTURE_PATH),
-        surface_deleter);
-    std::cout << "loaded texture: " << SKY_TEXTURE_PATH << '\n';
-    sky_tx = SdlTextureUnqPtr(
-        safeSdlExec(SDL_CreateTextureFromSurface, "SDL_CreateTextureFromSurface",
-                    SDL_RETURN_TEST(SDL_Texture*, (ret == nullptr)),
-                    renderer.get(), sky_surface.get()),
-        texture_deleter);
-    // set to alpha blending (for fps glyphs)
-    safeSdlExec(SDL_SetTextureBlendMode, "SDL_SetTextureBlendMode",
-                SDL_RETURN_TEST(int, ret < 0),
-                sky_tx.get(), SDL_BLENDMODE_BLEND);
-    // TBD: eventually change to map of texture keys representing floor/ceiling/walls
-    // dummmy texture at index 0, as map tile 0 represents non-wall tile
-    wall_txs.emplace_back(SdlSurfaceUnqPtr(nullptr, surface_deleter));
-    // load textures (into surfaces for per-pixel access)
-    for (uint8_t i { 1 }; i < 9; ++i) {
-        wall_txs.emplace_back( SdlSurfaceUnqPtr(
-            safeSdlExec(IMG_Load, "IMG_Load",
-                        SDL_RETURN_TEST(SDL_Surface*, (ret == nullptr)),
-                        wall_texture_paths[i]),
-            surface_deleter) );
-        std::cout << "Loaded texture: " << wall_texture_paths[i] << '\n';
+void SdlWindowMgr::renderHudLine(const std::string line, SDL_Rect glyph_rect) {
+    SDL_Renderer* _renderer { renderer.get() };
+    for (const char c : line) {
+        SDL_Texture* glyph_tex { font_cache.at(c).get() };
+        SDL_RenderFillRect(_renderer, &glyph_rect);
+        SDL_RenderCopy(_renderer, glyph_tex, nullptr, &glyph_rect);
+        glyph_rect.x += glyph_rect.w;
     }
-}
-
-void SdlDisplayMgr::fitToWindow(const double map_proportion,
-                                const uint16_t /*layout_w*/, const uint16_t layout_h) {
-    assert(window.get() != nullptr);
-    int w, h;
-    SDL_GetWindowSize(window.get(), &w, &h);  // void return, no error checking
-    window_w = w;
-    window_h = h;
-
-    // using format with alpha channel for blending of fps glyphs
-    buffer = SdlSurfaceUnqPtr(
-        safeSdlExec(SDL_CreateRGBSurfaceWithFormat, "SDL_CreateRGBSurfaceWithFormat",
-                    SDL_RETURN_TEST(SDL_Surface*, ret == nullptr),
-                    0 /*flags*/, window_w, window_h,
-                    32 /*depth (bits per pixel)*/, SDL_PIXELFORMAT_BGRA32),
-        surface_deleter);
-    // Even if pixel setting is multithreaded, no two threads should be
-    //   accessing the same pixel column at once, so we can rule out use of
-    //   SDL_LockSurface/SDL_UnlockSurface to improve performance
-    assert(!SDL_MUSTLOCK(buffer.get()));
-    buffer_tx = SdlTextureUnqPtr(
-        safeSdlExec(SDL_CreateTexture, "SDL_CreateTexture",
-                    SDL_RETURN_TEST(SDL_Texture*, ret == nullptr),
-                    renderer.get(), buffer->format->format,
-                    SDL_TEXTUREACCESS_STREAMING /*flags*/,
-                    window_w, window_h),
-        texture_deleter);
-    // set to alpha blending (for fps glyphs)
-    safeSdlExec(SDL_SetTextureBlendMode, "SDL_SetTextureBlendMode",
-                SDL_RETURN_TEST(int, ret < 0),
-                buffer_tx.get(), SDL_BLENDMODE_BLEND);
-
-    minimap_scale = (window_h * map_proportion) / layout_h;
-    minimap_viewport.w = minimap_scale * 25;
-    minimap_viewport.h = minimap_scale * 25;
-    // upper right minimap
-    minimap_viewport.x = window_w - minimap_viewport.w;
-    minimap_viewport.y = 0;
-
-    makeGlyphs(FONT_PATH);
-}
-
-uint32_t SdlDisplayMgr::getWindowId() {
-    return safeSdlExec(SDL_GetWindowID, "SDL_GetWindowID",
-                       SDL_RETURN_TEST(uint32_t, ret == 0),
-                       window.get());
 }
 
 // TBD: make public member? In case of building for optional multithreading,
@@ -169,7 +57,7 @@ uint32_t SdlDisplayMgr::getWindowId() {
 // The core illusion of raycasting comes from rendering walls in vertical
 //   strips, one per each ray cast in the FOV, with each strip being longer
 //   as the ray is shorter/wall is closer, forcing perspective.
-void SdlDisplayMgr::renderPixelColumn(const uint16_t screen_x,
+void SdlWindowMgr::renderPixelColumn(const uint16_t screen_x,
                                       const FovRay& ray) {
 
     // calculate height of vertical strip of wall to draw on screen
@@ -181,7 +69,7 @@ void SdlDisplayMgr::renderPixelColumn(const uint16_t screen_x,
 
     // TBD: add protection for out of range tex key? or in map parsing?
     // find proportionate x coordinate in wall texture
-    SDL_Surface* texture { wall_txs.at(ray.wall_hit.tex_key).get() };
+    SDL_Surface* texture { wall_texs.at(ray.wall_hit.tex_key).get() };
     uint16_t tex_x ( ray.wall_hit.x * texture->w );
     // ensure texture x of 0 is always to the left when facing the wall segment
     if ((ray.wall_hit.algnmt == WallOrientation::NS && ray.dir(0) > 0) ||
@@ -231,22 +119,147 @@ void SdlDisplayMgr::renderPixelColumn(const uint16_t screen_x,
     }
 }
 
-void SdlDisplayMgr::renderView(const std::vector<FovRay>& fov_rays,
+SdlWindowMgr::SdlWindowMgr() {
+    // SDL_Init in App()
+    // image subsystem for texture loading
+    safeSdlExec(IMG_Init, "IMG_Init", SDL_RETURN_TEST(int, (ret == 0)),
+                IMG_INIT_JPG);
+    // tff font subsystem for fps text
+    safeSdlExec(TTF_Init, "TTF_Init", SDL_RETURN_TEST(int, (ret == -1)) );
+}
+
+SdlWindowMgr::~SdlWindowMgr() {
+    TTF_Quit();
+    IMG_Quit();
+    // SDL_Quit in ~App()
+}
+
+uint32_t SdlWindowMgr::id() {
+    return safeSdlExec(SDL_GetWindowID, "SDL_GetWindowID",
+                       SDL_RETURN_TEST(uint32_t, ret == 0),
+                       window.get());
+}
+
+uint16_t SdlWindowMgr::width() { return window_w; }
+
+uint16_t SdlWindowMgr::height() { return window_h; }
+
+void SdlWindowMgr::initialize(const Settings& settings,
+                               const uint16_t layout_h) {
+    //
+    // init window and window buffer
+    //
+    window = SdlWindowUnqPtr(
+        safeSdlExec(SDL_CreateWindow, "SDL_CreateWindow",
+                    SDL_RETURN_TEST(SDL_Window*, ret == nullptr),
+                    "monoplanar raycast demo" /*name*/,
+                    SDL_WINDOWPOS_CENTERED /*x*/, SDL_WINDOWPOS_CENTERED /*y*/,
+                    WINDOW_WIDTH, WINDOW_HEIGHT,
+                    SDL_WINDOW_RESIZABLE /*flags*/),
+        window_deleter);
+
+    // TBD: can we set the renderer blendmode once instead of individual texture
+    //   blendmodes? SDL_SetRenderDrawBlendMode(renderer.get(), SDL_BLENDMODE_BLEND)
+    //   ( == 0 on success)
+    renderer = SdlRendererUnqPtr(
+        safeSdlExec(SDL_CreateRenderer, "SDL_CreateRenderer",
+                    SDL_RETURN_TEST(SDL_Renderer*, ret == nullptr),
+                    window.get(), -1 /*driver index (first to support flags)*/,
+                    SDL_RENDERER_ACCELERATED /*flags*/),
+        renderer_deleter);
+
+    // also populates font cache textures
+    fitToWindow(settings.map_proportion, layout_h);
+
+    //
+    // init textures other than font cache
+    //
+    SdlSurfaceUnqPtr sky_surface (
+        safeSdlExec(IMG_Load, "IMG_Load",
+                    SDL_RETURN_TEST(SDL_Surface*, (ret == nullptr)),
+                    SKY_TEX_PATH),
+        surface_deleter);
+    std::cout << "Loaded texture: " << SKY_TEX_PATH << '\n';
+    sky_tex = SdlTextureUnqPtr(
+        safeSdlExec(SDL_CreateTextureFromSurface, "SDL_CreateTextureFromSurface",
+                    SDL_RETURN_TEST(SDL_Texture*, (ret == nullptr)),
+                    renderer.get(), sky_surface.get()),
+        texture_deleter);
+    // set to alpha blending (for fps glyphs)
+    safeSdlExec(SDL_SetTextureBlendMode, "SDL_SetTextureBlendMode",
+                SDL_RETURN_TEST(int, ret < 0),
+                sky_tex.get(), SDL_BLENDMODE_BLEND);
+    // TBD: eventually change to map of texture keys representing floor/ceiling/walls
+    // dummmy texture at index 0, as map tile 0 represents non-wall tile
+    wall_texs.emplace_back(SdlSurfaceUnqPtr(nullptr, surface_deleter));
+    // load textures (into surfaces for per-pixel access)
+    for (uint8_t i { 1 }; i < 9; ++i) {
+        wall_texs.emplace_back( SdlSurfaceUnqPtr(
+            safeSdlExec(IMG_Load, "IMG_Load",
+                        SDL_RETURN_TEST(SDL_Surface*, (ret == nullptr)),
+                        wall_tex_paths[i]),
+            surface_deleter) );
+        std::cout << "Loaded texture: " << wall_tex_paths[i] << '\n';
+    }
+}
+
+void SdlWindowMgr::fitToWindow(const double map_proportion,
+                                const uint16_t layout_h) {
+    assert(window.get() != nullptr);
+    int w, h;
+    SDL_GetWindowSize(window.get(), &w, &h);  // void return, no error checking
+    window_w = w;
+    window_h = h;
+
+    // using format with alpha channel for blending of fps glyphs
+    buffer = SdlSurfaceUnqPtr(
+        safeSdlExec(SDL_CreateRGBSurfaceWithFormat, "SDL_CreateRGBSurfaceWithFormat",
+                    SDL_RETURN_TEST(SDL_Surface*, ret == nullptr),
+                    0 /*flags*/, window_w, window_h,
+                    32 /*depth (bits per pixel)*/, SDL_PIXELFORMAT_BGRA32),
+        surface_deleter);
+    // Even if pixel setting is multithreaded, no two threads should be
+    //   accessing the same pixel column at once, so we can rule out use of
+    //   SDL_LockSurface/SDL_UnlockSurface to improve performance
+    assert(!SDL_MUSTLOCK(buffer.get()));
+    buffer_tex = SdlTextureUnqPtr(
+        safeSdlExec(SDL_CreateTexture, "SDL_CreateTexture",
+                    SDL_RETURN_TEST(SDL_Texture*, ret == nullptr),
+                    renderer.get(), buffer->format->format,
+                    SDL_TEXTUREACCESS_STREAMING /*flags*/,
+                    window_w, window_h),
+        texture_deleter);
+    // set to alpha blending (for fps glyphs)
+    safeSdlExec(SDL_SetTextureBlendMode, "SDL_SetTextureBlendMode",
+                SDL_RETURN_TEST(int, ret < 0),
+                buffer_tex.get(), SDL_BLENDMODE_BLEND);
+
+    minimap_scale = (window_h * map_proportion) / layout_h;
+    minimap_viewport.w = minimap_scale * 25;
+    minimap_viewport.h = minimap_scale * 25;
+    // upper right minimap
+    minimap_viewport.x = window_w - minimap_viewport.w;
+    minimap_viewport.y = 0;
+
+    makeGlyphs(FONT_PATH);
+}
+
+void SdlWindowMgr::renderView(const std::vector<FovRay>& fov_rays,
                                const Settings& /*settings*/) {
     // TBD: currently rendering entire skyplane and then drawing walls on top
     //   perhaps we can make viewport on skyplane so it's not stretched, and then
     //   set buffer pixels of only sky above walls, and floor below
     // render entire skyplane tx to window, stretch to fit
-    SDL_RenderCopy(renderer.get(), sky_tx.get(), nullptr, nullptr);
+    SDL_RenderCopy(renderer.get(), sky_tex.get(), nullptr, nullptr);
     for (uint16_t window_x { 0 }; window_x < window_w; ++window_x) {
         renderPixelColumn(window_x, fov_rays[window_x]);
     }
-    SDL_UpdateTexture(buffer_tx.get(), nullptr, buffer->pixels, buffer->pitch);
+    SDL_UpdateTexture(buffer_tex.get(), nullptr, buffer->pixels, buffer->pitch);
     // fit entire texture to window
-    SDL_RenderCopy(renderer.get(), buffer_tx.get(), nullptr, nullptr);
+    SDL_RenderCopy(renderer.get(), buffer_tex.get(), nullptr, nullptr);
 }
 
-void SdlDisplayMgr::renderMap(const DdaRaycastEngine& raycast_engine) {
+void SdlWindowMgr::renderMap(const DdaRaycastEngine& raycast_engine) {
     SDL_Renderer* _renderer { renderer.get() };
     // render to entire window
     SDL_RenderSetViewport(_renderer, nullptr);
@@ -290,21 +303,12 @@ void SdlDisplayMgr::renderMap(const DdaRaycastEngine& raycast_engine) {
     SDL_RenderSetScale(_renderer, 1, 1);
 }
 
-void SdlDisplayMgr::renderHudLine(const std::string line, SDL_Rect glyph_rect) {
-    SDL_Renderer* _renderer { renderer.get() };
-    for (const char c : line) {
-        SDL_Texture* glyph_tex { font_cache.at(c).get() };
-        SDL_RenderFillRect(_renderer, &glyph_rect);
-        SDL_RenderCopy(_renderer, glyph_tex, nullptr, &glyph_rect);
-        glyph_rect.x += glyph_rect.w;
-    }
-}
 
-void SdlDisplayMgr::renderHUD(const double pt_frame_duration_mvg_avg,
+void SdlWindowMgr::renderHud(const double pt_frame_duration_mvg_avg,
                               const double rt_frame_duration_mvg_avg,
                               const Settings& settings,
                               const DdaRaycastEngine& raycast_engine,
-                              const std::unique_ptr<KbdInputMgr>& kbd_input_mgr) {
+                              const KbdInputMgr* kbd_input_mgr) {
     char line[50] { '\0' };
     SDL_Rect glyph_rect { 0, 0, 0, 0 };
     // font "Courier New.ttf" is monospaced, so should have consistent glyph
@@ -375,6 +379,6 @@ void SdlDisplayMgr::renderHUD(const double pt_frame_duration_mvg_avg,
     }
 }
 
-void SdlDisplayMgr::drawScreen(const Settings& /*settings*/) {
+void SdlWindowMgr::drawFrame(const Settings& /*settings*/) {
     SDL_RenderPresent(renderer.get());
 }

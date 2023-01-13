@@ -32,16 +32,16 @@ public:
     virtual void consumeKeyEvents() {}
     virtual void consumeKeyEvent(const SDL_KeyboardEvent& /*ev*/) {}
 
-    virtual bool keyDownThisFrame(const int32_t code);
-    virtual bool isPressed(const int32_t code);
-    virtual bool isReleased(const int32_t code);
+    bool keyDownThisFrame(const int32_t code) const;
+    bool isPressed(const int32_t code) const;
+    bool isReleased(const int32_t code) const;
 
     // Game frames may pass between consuming a key press event and its first
     //   autorepeat event; so to maintain the distinction between a key being
     //   pressed and a key being held down at frame granularity, this can be
     //   used to mark any keys pressed this frame as held (repeating) at the
     //   end of that frame
-    virtual void decayToAutorepeat();
+    void decayToAutorepeat();
 };
 
 

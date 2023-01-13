@@ -1,4 +1,4 @@
-#include "TtyDisplayMgr.hh"
+#include "TtyWindowMgr.hh"
 #include "safeCExec.hh"               // C_*
 #include "safeSdlExec.hh"             // SDL_RETURN_TEST
 #include "Xterm.hh"                   // CtrlSeqs::
@@ -22,24 +22,15 @@
 #include <algorithm>                  // max min
 
 
-void TtyDisplayMgr::updateMiniMapSize(const double map_proportion) {
-    assert(map_proportion > 0.0);
-    minimap_h = screen_buffer.h * map_proportion;
-    // dims must be odd to center player icon
-    if (minimap_h % 2 == 0)
-        ++(minimap_h);
-    minimap_w = (minimap_h * 2) + 1;
-}
-
-void TtyDisplayMgr::renderAsciiPixelColumn(const uint16_t screen_x,
-                                           const int16_t ceiling_screen_y,
-                                           const uint16_t line_h,
-                                           const WallOrientation wall_hit_algnmt) {
+void TtyWindowMgr::renderAsciiPixelColumn(const uint16_t screen_x,
+                                          const int16_t ceiling_screen_y,
+                                          const uint16_t line_h,
+                                          const WallOrientation wall_hit_algnmt) {
     uint16_t screen_y { 0 };
     uint16_t screen_line_begin_y ( std::max(0, (int)ceiling_screen_y) );
-    uint16_t screen_line_end_y ( std::min((int)screen_buffer.h, ceiling_screen_y + line_h) );
-    uint16_t screen_w { screen_buffer.w };
-    TtyPixel* screen_px { screen_buffer.pixel(screen_x, screen_y) };
+    uint16_t screen_line_end_y ( std::min((int)buffer.h, ceiling_screen_y + line_h) );
+    uint16_t screen_w { buffer.w };
+    TtyPixel* screen_px { buffer.pixel(screen_x, screen_y) };
     // draw ceiling
     for (; screen_y < screen_line_begin_y; ++screen_y, screen_px += screen_w)
         screen_px->c = ' ';
@@ -49,21 +40,21 @@ void TtyDisplayMgr::renderAsciiPixelColumn(const uint16_t screen_x,
             (wall_hit_algnmt == WallOrientation::NS) ? '|' : '@';
     }
     // draw floor
-    for (; screen_y < screen_buffer.h; ++screen_y, screen_px += screen_w)
+    for (; screen_y < buffer.h; ++screen_y, screen_px += screen_w)
         screen_px->c = ' ';
 }
 
-void TtyDisplayMgr::render256ColorPixelColumn(const uint16_t screen_x,
-                                              const int16_t ceiling_screen_y,
-                                              const uint16_t line_h,
-                                              const WallOrientation wall_hit_algnmt,
-                                              const SDL_Surface* texture,
-                                              const uint16_t tex_x) {
+void TtyWindowMgr::render256ColorPixelColumn(const uint16_t screen_x,
+                                             const int16_t ceiling_screen_y,
+                                             const uint16_t line_h,
+                                             const WallOrientation wall_hit_algnmt,
+                                             const SDL_Surface* texture,
+                                             const uint16_t tex_x) {
     uint16_t screen_y { 0 };
     uint16_t screen_line_begin_y ( std::max(0, (int)ceiling_screen_y) );
-    uint16_t screen_line_end_y ( std::min((int)screen_buffer.h, ceiling_screen_y + line_h) );
-    uint16_t screen_w { screen_buffer.w };
-    TtyPixel* column_px { screen_buffer.pixel(screen_x, screen_y) };
+    uint16_t screen_line_end_y ( std::min((int)buffer.h, ceiling_screen_y + line_h) );
+    uint16_t screen_w { buffer.w };
+    TtyPixel* column_px { buffer.pixel(screen_x, screen_y) };
     // draw ceiling
     for (; screen_y < screen_line_begin_y; ++screen_y, column_px += screen_w) {
         column_px->code = (uint8_t)Xterm::Color::Codes::System::Black;
@@ -75,7 +66,7 @@ void TtyDisplayMgr::render256ColorPixelColumn(const uint16_t screen_x,
     uint16_t tex_row_sz ( texture->pitch );
     uint8_t r, g, b;
     for (uint16_t tex_y; screen_y < screen_line_end_y; ++screen_y, column_px += screen_w) {
-        // screen_buffer traversal can optimize away calling `screen_buffer.pixel(
+        // buffer traversal can optimize away calling `buffer.pixel(
         //   screen_x, screen_y)` due a consistent step of screen_y += 1 each
         //   loop; using a similar approach to texture traversal is difficult
         //   as we need to accommodate any possible tex_h:line_h ratio, and
@@ -91,22 +82,22 @@ void TtyDisplayMgr::render256ColorPixelColumn(const uint16_t screen_x,
         column_px->code = Xterm::Color::Codes::fromRGB(r, g, b);
     }
     // draw floor
-    for (; screen_y < screen_buffer.h; ++screen_y, column_px += screen_w) {
+    for (; screen_y < buffer.h; ++screen_y, column_px += screen_w) {
         column_px->code = (uint8_t)Xterm::Color::Codes::System::Black;
     }
 }
 
-void TtyDisplayMgr::renderTrueColorPixelColumn(const uint16_t screen_x,
-                                               const int16_t ceiling_screen_y,
-                                               const uint16_t line_h,
-                                               const WallOrientation wall_hit_algnmt,
-                                               const SDL_Surface* texture,
-                                               const uint16_t tex_x) {
+void TtyWindowMgr::renderTrueColorPixelColumn(const uint16_t screen_x,
+                                              const int16_t ceiling_screen_y,
+                                              const uint16_t line_h,
+                                              const WallOrientation wall_hit_algnmt,
+                                              const SDL_Surface* texture,
+                                              const uint16_t tex_x) {
     uint16_t screen_y { 0 };
     uint16_t screen_line_begin_y ( std::max(0, (int)ceiling_screen_y) );
-    uint16_t screen_line_end_y ( std::min((int)screen_buffer.h, ceiling_screen_y + line_h) );
-    uint16_t screen_w { screen_buffer.w };
-    TtyPixel* screen_px { screen_buffer.pixel(screen_x, screen_y) };
+    uint16_t screen_line_end_y ( std::min((int)buffer.h, ceiling_screen_y + line_h) );
+    uint16_t screen_w { buffer.w };
+    TtyPixel* screen_px { buffer.pixel(screen_x, screen_y) };
     // draw ceiling
     for (; screen_y < screen_line_begin_y; ++screen_y, screen_px += screen_w) {
         screen_px->r = 0;
@@ -120,7 +111,7 @@ void TtyDisplayMgr::renderTrueColorPixelColumn(const uint16_t screen_x,
     uint16_t tex_row_sz ( texture->pitch );
     uint8_t r, g, b;
     for (uint16_t tex_y; screen_y < screen_line_end_y; ++screen_y, screen_px += screen_w) {
-        // screen_buffer traversal can optimize away calling `screen_buffer.pixel(
+        // buffer traversal can optimize away calling `buffer.pixel(
         //   screen_x, screen_y)` due a consistent step of screen_y += 1 each
         //   loop; using a similar approach to texture traversal is difficult
         //   as we need to accommodate any possible tex_h:line_h ratio, and
@@ -138,7 +129,7 @@ void TtyDisplayMgr::renderTrueColorPixelColumn(const uint16_t screen_x,
         screen_px->b = b;
     }
     // draw floor
-    for (; screen_y < screen_buffer.h; ++screen_y, screen_px += screen_w) {
+    for (; screen_y < buffer.h; ++screen_y, screen_px += screen_w) {
         screen_px->r = 0;
         screen_px->g = 0;
         screen_px->b = 0;
@@ -152,16 +143,16 @@ void TtyDisplayMgr::renderTrueColorPixelColumn(const uint16_t screen_x,
 // The core illusion of raycasting comes from rendering walls in vertical
 //   strips, one per each ray cast in the FOV, with each strip being longer
 //   as the ray is shorter/wall is closer, forcing perspective.
-void TtyDisplayMgr::renderPixelColumn(const uint16_t screen_x,
-                                      const FovRay& ray,
-                                      const TtyDisplayMode tty_display_mode) {
+void TtyWindowMgr::renderPixelColumn(const uint16_t screen_x,
+                                     const FovRay& ray,
+                                     const TtyDisplayMode tty_display_mode) {
 
     // calculate height of vertical strip of wall to draw on screen
-    uint16_t line_h ( screen_buffer.h / ray.wall_hit.dist );
+    uint16_t line_h ( buffer.h / ray.wall_hit.dist );
 
     // row index of highest pixel in strip (may be negative if camera is close
     //   to wall and wall unit does not fit in frame)
-    int16_t ceiling_screen_y ( screen_buffer.h / 2 - line_h / 2 );
+    int16_t ceiling_screen_y ( buffer.h / 2 - line_h / 2 );
 
     if (tty_display_mode == TtyDisplayMode::Ascii) {
         return renderAsciiPixelColumn(screen_x, ceiling_screen_y, line_h,
@@ -170,7 +161,7 @@ void TtyDisplayMgr::renderPixelColumn(const uint16_t screen_x,
 
     // TBD: add protection for out of range tex key? or in map parsing?
     // find proportionate x coordinate in wall texture
-    SDL_Surface* texture { wall_textures.at(ray.wall_hit.tex_key).get() };
+    SDL_Surface* texture { wall_texs.at(ray.wall_hit.tex_key).get() };
     uint16_t tex_x ( ray.wall_hit.x * texture->w );
     // ensure texture x of 0 is always to the left when facing the wall segment
     if ((ray.wall_hit.algnmt == WallOrientation::NS && ray.dir(0) > 0) ||
@@ -189,84 +180,100 @@ void TtyDisplayMgr::renderPixelColumn(const uint16_t screen_x,
     }
 }
 
-// TBD: IMG_Init/Quit can be moved to parent ctor/dtor
-TtyDisplayMgr::TtyDisplayMgr() {
+TtyWindowMgr::TtyWindowMgr() {
+    // SDL_Init in App()
+    // image subsystem for texture loading
     safeSdlExec(IMG_Init, "IMG_Init", SDL_RETURN_TEST(int, (ret == 0)),
                 IMG_INIT_JPG);
 }
 
-TtyDisplayMgr::~TtyDisplayMgr() {
+TtyWindowMgr::~TtyWindowMgr() {
     IMG_Quit();
+    // SDL_Quit in ~App()
 }
 
-void TtyDisplayMgr::initialize(const Settings& settings) {
+uint16_t TtyWindowMgr::width() { return buffer.w; }
+
+uint16_t TtyWindowMgr::height() { return buffer.h; }
+
+void TtyWindowMgr::resetBuffer() {
+    // favoring C-like pointer over iterator for performance
+    TtyPixel* pixel { buffer.pixel(0, 0) };
+    uint32_t buffer_sz ( buffer.w * buffer.h );
+    for (uint32_t i { 0 }; i < buffer_sz; ++i, ++pixel)
+        pixel->c = ' ';
+}
+
+void TtyWindowMgr::drawEmptyFrame() {
+    std::cout << Xterm::CtrlSeqs::CursorHome() <<
+        Xterm::CtrlSeqs::EraseLinesBelow();
+}
+
+void TtyWindowMgr::initialize(const Settings& settings,
+                              const uint16_t /*layout_h*/) {
     // Use of ttyname taken from coreutils tty, see:
     //  - https://github.com/coreutils/coreutils/blob/master/src/tty.c
     tty_name = safeCExec(ttyname, "ttyname",
                          C_RETURN_TEST(char *, (ret == nullptr)),
                          STDIN_FILENO);
 
-    fitToWindow(settings.map_proportion);
+    fitToWindow(settings.map_proportion, 0/*layout_h, unused*/);
 
     // TBD: eventually change to map of texture keys representing floor/ceiling/walls
     // dummmy texture at index 0, as map tile 0 represents non-wall tile
-    wall_textures.emplace_back(SdlSurfaceUnqPtr(nullptr, surface_deleter));
+    wall_texs.emplace_back(SdlSurfaceUnqPtr(nullptr, surface_deleter));
     // load textures (into surfaces for per-pixel access)
-    for (uint8_t i { 1 }; i < wall_texture_paths.size(); ++i) {
-        wall_textures.emplace_back( SdlSurfaceUnqPtr(
+    for (uint8_t i { 1 }; i < 9; ++i) {
+        wall_texs.emplace_back( SdlSurfaceUnqPtr(
             safeSdlExec(IMG_Load, "IMG_Load", SDL_RETURN_TEST(SDL_Surface*, (ret == nullptr)),
-                        wall_texture_paths[i]),
+                        wall_tex_paths[i]),
             surface_deleter) );
-        std::cout << "loaded texture: " << wall_texture_paths[i] << '\n';
+        std::cout << "Loaded texture: " << wall_tex_paths[i] << '\n';
     }
 
     // force scrollback of all terminal text by drawing an empty frame
-    //   (screen_buffer default init is to all black ' ' chars)
-    drawScreen(settings);
-    clearDisplay();
+    //   (buffer default init is to all black ' ' chars)
+    // TBD: why both here?
+    drawFrame(settings);
+    drawEmptyFrame();
     std::cout << Xterm::CtrlSeqs::HideCursor();
 }
 
-void TtyDisplayMgr::fitToWindow(const double map_proportion) {
+void TtyWindowMgr::fitToWindow(const double map_proportion,
+                               const uint16_t /*layout_h*/) {
     // get terminal window size in chars
     // use of TIOCGWINSZ taken from coreutils stty, see:
     //   - https://github.com/wertarbyte/coreutils/blob/master/src/stty.c#L1311
     struct winsize winsz;
     safeCExec(ioctl, "ioctl", C_RETURN_TEST(int, (ret == -1)),
               STDIN_FILENO, TIOCGWINSZ, &winsz);
-    screen_buffer.resize(winsz.ws_col, winsz.ws_row);
+    buffer.resize(winsz.ws_col, winsz.ws_row);
 
-    updateMiniMapSize(map_proportion);
+    // set minimap w,h in chars
+    assert(map_proportion > 0);
+    minimap_h = buffer.h * map_proportion;
+    // dims must be odd to center player icon
+    if (minimap_h % 2 == 0)
+        ++(minimap_h);
+    minimap_w = (minimap_h * 2) + 1;
 }
 
-// TBD: integrate with interface class
-void TtyDisplayMgr::resetBuffer() {
-    // favoring C-like pointer over iterator for performance
-    TtyPixel* pixel { screen_buffer.pixel(0, 0) };
-    uint32_t screen_buffer_sz ( screen_buffer.w * screen_buffer.h );
-    for (uint32_t i { 0 }; i < screen_buffer_sz; ++i, ++pixel)
-        pixel->c = ' ';
-}
 
-// TBD remove?
-void TtyDisplayMgr::clearDisplay() {
-    std::cout << Xterm::CtrlSeqs::CursorHome() <<
-        Xterm::CtrlSeqs::EraseLinesBelow();
-}
-
-void TtyDisplayMgr::renderView(const std::vector<FovRay>& fov_rays,
+void TtyWindowMgr::renderView(const std::vector<FovRay>& fov_rays,
                                const Settings& settings) {
     TtyDisplayMode tty_display_mode { settings.tty_display_mode };
-    for (uint16_t screen_x { 0 }; screen_x < screen_buffer.w; ++screen_x) {
+    for (uint16_t screen_x { 0 }; screen_x < buffer.w; ++screen_x) {
         renderPixelColumn(screen_x, fov_rays[screen_x], tty_display_mode);
     }
 }
 
+// TBD: move to Vector2d
 // https://stackoverflow.com/questions/6247153/angle-from-2d-unit-vector
 constexpr inline double radiansToDegrees(const double radians) {
     return radians * (180 / M_PI);
 }
 
+// TBD: move to Vector2d
 double vectorAngle(const Vector2d& vec) {
     double angle { radiansToDegrees(std::atan(vec(1) / vec(0))) };
     if (vec(0) < 0)  // quadrant II or III
@@ -276,17 +283,16 @@ double vectorAngle(const Vector2d& vec) {
     return angle;
 }
 
-void TtyDisplayMgr::renderMap(const DdaRaycastEngine& raycast_engine
-                              /*const Layout& layout, const Vector2d& player_pos, const Vector2d& player_dir*/) {
+void TtyWindowMgr::renderMap(const DdaRaycastEngine& raycast_engine) {
     // assert(state->map_dims % 2);
-    if (minimap_h < 5 || minimap_w >= screen_buffer.w)
+    if (minimap_h < 5 || minimap_w >= buffer.w)
         return;
     std::string line;
     uint16_t display_row_i { 0 };
     uint16_t bordered_map_w ( minimap_w + 2 );
     // top border
     line.resize(bordered_map_w, ' ');
-    screen_buffer.pixelCharReplace(0, display_row_i,
+    buffer.pixelCharReplace(0, display_row_i,
                                    line.c_str(), bordered_map_w);
     ++display_row_i;
     const uint16_t player_x ( raycast_engine.player_pos(0) );
@@ -332,21 +338,21 @@ void TtyDisplayMgr::renderMap(const DdaRaycastEngine& raycast_engine
                 player_icon = '~';
             line[bordered_map_w / 2] = player_icon;
         }
-        screen_buffer.pixelCharReplace(0, display_row_i,
+        buffer.pixelCharReplace(0, display_row_i,
                                        line.c_str(), bordered_map_w);
     }
     // bottom border
     line.clear();
     line.resize(bordered_map_w, ' ');
-    screen_buffer.pixelCharReplace(0, display_row_i,
+    buffer.pixelCharReplace(0, display_row_i,
                                    line.c_str(), bordered_map_w);
 }
 
-void TtyDisplayMgr::renderHUD(const double pt_frame_duration_mvg_avg,
-                              const double rt_frame_duration_mvg_avg,
-                              const Settings& settings,
-                              const DdaRaycastEngine& raycast_engine,
-                              const std::unique_ptr<KbdInputMgr>& kbd_input_mgr) {
+void TtyWindowMgr::renderHud(const double pt_frame_duration_mvg_avg,
+                             const double rt_frame_duration_mvg_avg,
+                             const Settings& settings,
+                             const DdaRaycastEngine& raycast_engine,
+                             const KbdInputMgr* kbd_input_mgr) {
     //      PTFPS: 4---.2-  RTFPS: 4---.2-
     //
     //     stop: 0 show_fps: 0 show_map: 0
@@ -371,83 +377,83 @@ void TtyDisplayMgr::renderHUD(const double pt_frame_duration_mvg_avg,
                      (1 / pt_frame_duration_mvg_avg),
                      (1 / rt_frame_duration_mvg_avg) );
         hud_line_sz = std::strlen(hud_line);
-        replace_col_i = screen_buffer.w - hud_line_sz;
-        screen_buffer.pixelCharReplace(replace_col_i, 0, hud_line, hud_line_sz);
+        replace_col_i = buffer.w - hud_line_sz;
+        buffer.pixelCharReplace(replace_col_i, 0, hud_line, hud_line_sz);
         // blank border of same length underneath
         std::memset(hud_line, ' ', hud_line_sz);
         hud_line[hud_line_sz] = '\0';
-        screen_buffer.pixelCharReplace(replace_col_i, 1, hud_line, hud_line_sz);
+        buffer.pixelCharReplace(replace_col_i, 1, hud_line, hud_line_sz);
     }
 
-    if (settings.debug_mode && screen_buffer.h >= 11) {
+    if (settings.debug_mode && buffer.h >= 11) {
         // TBD: add final list of settings
         std::sprintf(hud_line, "     stop: X show_fps: %i show_map: %i",
                      settings.show_fps, settings.show_map);
         hud_line_sz = std::strlen(hud_line);
         // right justified (all lines should be left padded to equal length)
-        replace_col_i = screen_buffer.w - hud_line_sz;
+        replace_col_i = buffer.w - hud_line_sz;
 
         // -ddd.ddd format
-        screen_buffer.pixelCharReplace(replace_col_i, 2, hud_line, hud_line_sz);
+        buffer.pixelCharReplace(replace_col_i, 2, hud_line, hud_line_sz);
         std::sprintf(hud_line, "    player_pos: {%8.3f, %8.3f}",
                      raycast_engine.player_pos(0), raycast_engine.player_pos(1));
-        screen_buffer.pixelCharReplace(replace_col_i, 3, hud_line, hud_line_sz);
+        buffer.pixelCharReplace(replace_col_i, 3, hud_line, hud_line_sz);
         std::sprintf(hud_line, "    player_dir: {%8.3f, %8.3f}",
                      raycast_engine.player_dir(0), raycast_engine.player_dir(1));
-        screen_buffer.pixelCharReplace(replace_col_i, 4, hud_line, hud_line_sz);
+        buffer.pixelCharReplace(replace_col_i, 4, hud_line, hud_line_sz);
         std::sprintf(hud_line, "    view_plane: {%8.3f, %8.3f}",
                      raycast_engine.view_plane(0), raycast_engine.view_plane(1));
-        screen_buffer.pixelCharReplace(replace_col_i, 5, hud_line, hud_line_sz);
+        buffer.pixelCharReplace(replace_col_i, 5, hud_line, hud_line_sz);
 
         std::sprintf(hud_line, "           window size: %3u h %4u w",
-                     screen_buffer.h, screen_buffer.w);
-        screen_buffer.pixelCharReplace(replace_col_i, 6, hud_line, hud_line_sz);
+                     buffer.h, buffer.w);
+        buffer.pixelCharReplace(replace_col_i, 6, hud_line, hud_line_sz);
 
         // TBD: add final key layout
         std::sprintf(hud_line, "                    user input keys:");
-        screen_buffer.pixelCharReplace(replace_col_i, 7, hud_line, hud_line_sz);
+        buffer.pixelCharReplace(replace_col_i, 7, hud_line, hud_line_sz);
         std::sprintf(hud_line, "      down: %i right: %i up: %i left: %i",
                      kbd_input_mgr->isPressed(KEY_DOWN), kbd_input_mgr->isPressed(KEY_RIGHT),
                      kbd_input_mgr->isPressed(KEY_UP), kbd_input_mgr->isPressed(KEY_LEFT));
-        screen_buffer.pixelCharReplace(replace_col_i, 8, hud_line, hud_line_sz);
+        buffer.pixelCharReplace(replace_col_i, 8, hud_line, hud_line_sz);
 
         std::sprintf(hud_line, "   player dir angle from +x: %7.2f",
                      vectorAngle(raycast_engine.player_dir) );
-        screen_buffer.pixelCharReplace(replace_col_i, 9, hud_line, hud_line_sz);
+        buffer.pixelCharReplace(replace_col_i, 9, hud_line, hud_line_sz);
 
         // final blank border line
         std::memset(hud_line, ' ', hud_line_sz);
         hud_line[hud_line_sz] = '\0';
-        screen_buffer.pixelCharReplace(replace_col_i, 10, hud_line, hud_line_sz);
+        buffer.pixelCharReplace(replace_col_i, 10, hud_line, hud_line_sz);
     }
 }
 
 // TBD: switch to pointer arithmetic optimization like renderPixelColumn*
 // TBD: specialize this like renderPixelColumn to prevent testing tty_display_mode for every px
-void TtyDisplayMgr::drawScreen(const Settings& settings) {
-    assert(screen_buffer.h > 0);
+void TtyWindowMgr::drawFrame(const Settings& settings) {
+    assert(buffer.h > 0);
     std::ostringstream oss;
-    TtyPixel* px { screen_buffer.pixel(0, 0) };
+    TtyPixel* px { buffer.pixel(0, 0) };
     const TtyDisplayMode tty_display_mode { settings.tty_display_mode };
     // subtraction implicitly converts to int
-    uint16_t last_row_i ( screen_buffer.h - 1 );
+    uint16_t last_row_i ( buffer.h - 1 );
     if (tty_display_mode == TtyDisplayMode::Ascii) {
         for (uint16_t row_i { 0 }; row_i < last_row_i; ++row_i) {
-            for (uint16_t col_i { 0 }; col_i < screen_buffer.w; ++col_i, ++px) {
+            for (uint16_t col_i { 0 }; col_i < buffer.w; ++col_i, ++px) {
                 oss << px->c;
             }
             oss << '\n';
         }
     } else if (tty_display_mode == TtyDisplayMode::ColorCode) {
         for (uint16_t row_i { 0 }; row_i < last_row_i; ++row_i) {
-            for (uint16_t col_i { 0 }; col_i < screen_buffer.w; ++col_i, ++px) {
+            for (uint16_t col_i { 0 }; col_i < buffer.w; ++col_i, ++px) {
                 oss << Xterm::CtrlSeqs::CharBgColor(px->code) << px->c;
             }
             oss << Xterm::CtrlSeqs::CharDefaults() << '\n';
         }
     } else {
         for (uint16_t row_i { 0 }; row_i < last_row_i; ++row_i) {
-            for (uint16_t col_i { 0 }; col_i < screen_buffer.w; ++col_i, ++px) {
+            for (uint16_t col_i { 0 }; col_i < buffer.w; ++col_i, ++px) {
                 oss << Xterm::CtrlSeqs::CharBgColor(px->r, px->g, px->b) << px->c;
             }
             oss << Xterm::CtrlSeqs::CharDefaults() << '\n';
@@ -456,7 +462,7 @@ void TtyDisplayMgr::drawScreen(const Settings& settings) {
     // TBD: last line could instead be used for notifications and collecting
     //   user text input, eg loading a new map file
     // newline in last row would scroll screen up
-    for (uint16_t col_i { 0 }; col_i < screen_buffer.w; ++col_i, ++px) {
+    for (uint16_t col_i { 0 }; col_i < buffer.w; ++col_i, ++px) {
         if (tty_display_mode == TtyDisplayMode::ColorCode)
             oss << Xterm::CtrlSeqs::CharBgColor(px->code);
         else if (tty_display_mode == TtyDisplayMode::TrueColor)

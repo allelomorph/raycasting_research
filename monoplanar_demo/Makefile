@@ -27,20 +27,19 @@ MP_FILE_STEMS := \
 	KbdInputMgr \
 	Layout \
 	LinuxKbdInputMgr \
-	TtyDisplayMgr \
+	TtyWindowMgr \
 	TtyScreenBuffer \
 	sdl_unique_ptrs \
-	SdlDisplayMgr \
+	SdlWindowMgr \
 	SdlKbdInputMgr
-#   DisplayMgr_ \
 
 PATHLESS_MP_SRC         := $(addsuffix .cc, $(MP_FILE_STEMS))
 PATHLESS_MP_SRC_HEADERS := $(addsuffix .hh, $(MP_FILE_STEMS))
 PATHLESS_MP_HEADER_ONLY := \
 	KeyState.hh \
 	Matrix.hh \
-	Settings.hh
-#   DisplayMgr.hh_
+	Settings.hh \
+	WindowMgr.hh
 
 MP_SRC         := $(addprefix $(SRC_DIR), $(PATHLESS_MP_SRC))
 MP_SRC_HEADERS := $(addprefix $(INCLUDE_DIR), $(PATHLESS_MP_SRC_HEADERS))

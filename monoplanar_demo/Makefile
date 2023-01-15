@@ -28,7 +28,7 @@ MP_FILE_STEMS := \
 	Layout \
 	LinuxKbdInputMgr \
 	TtyWindowMgr \
-	TtyScreenBuffer \
+	TtyPixelBuffer \
 	sdl_unique_ptrs \
 	SdlWindowMgr \
 	SdlKbdInputMgr

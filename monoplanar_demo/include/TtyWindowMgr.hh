@@ -2,7 +2,7 @@
 #define TTYWINDOWMGR_HH
 
 #include "WindowMgr.hh"
-#include "TtyScreenBuffer.hh"
+#include "TtyPixelBuffer.hh"
 #include "DdaRaycastEngine.hh"  // WallOrientation FovRay
 #include "Settings.hh"          // TtyDisplayMode
 #include "KbdInputMgr.hh"
@@ -17,8 +17,7 @@
 
 class TtyWindowMgr : public WindowMgr {
 private:
-    // TBD: rename to TtyPixelBuffer
-    TtyScreenBuffer buffer;
+    TtyPixelBuffer buffer;
 
     uint16_t minimap_w;
     uint16_t minimap_h;
@@ -46,7 +45,6 @@ private:
                            const TtyDisplayMode tty_display_mode);
 
 public:
-    // TBD: consolidate with id? only used by TtyWindowMgr
     std::string tty_name;
 
     TtyWindowMgr();
@@ -58,7 +56,7 @@ public:
     void resetBuffer();
     void drawEmptyFrame();
 
-    void initialize(const Settings& settings, const uint16_t /*layout_h*/);
+    void initialize(const Settings& settings, const uint16_t layout_h);
 
     void fitToWindow(const double map_proportion, const uint16_t /*layout_h*/);
 

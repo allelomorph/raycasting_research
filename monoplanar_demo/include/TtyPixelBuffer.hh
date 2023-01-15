@@ -1,5 +1,5 @@
-#ifndef TTYSCREENBUFFER_HH
-#define TTYSCREENBUFFER_HH
+#ifndef TTYPIXELBUFFER_HH
+#define TTYPIXELBUFFER_HH
 
 #include "Xterm.hh"     //  Color::Data
 
@@ -39,7 +39,7 @@ struct TtyPixel : public BgColorData {
 //     - when traversing grid in the x in TtyDisplayMgr::drawScreen(), much
 //         faster to use pixel() than iterators constructed from pixels.begin()
 
-class TtyScreenBuffer {
+class TtyPixelBuffer {
 private:
     std::vector<TtyPixel> pixels;
 
@@ -47,8 +47,9 @@ public:
     uint16_t w;  // columns
     uint16_t h;  // rows
 
-    // adjusting to terminal resize
-    void resize(const uint16_t _w, const uint16_t _h);
+    TtyPixelBuffer() {}
+    TtyPixelBuffer(const uint16_t _w, const uint16_t _h) :
+        pixels(std::vector<TtyPixel>(_w * _h)), w(_w), h(_h) {}
 
     // get/set pixels
     TtyPixel* pixel(const uint16_t col_i, const uint16_t row_i);
@@ -59,4 +60,4 @@ public:
 };
 
 
-#endif  // TTYSCREENBUFFER_HH
+#endif  // TTYPIXELBUFFER_HH

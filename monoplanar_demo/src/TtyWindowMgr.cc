@@ -197,11 +197,7 @@ uint16_t TtyWindowMgr::width() { return buffer.w; }
 uint16_t TtyWindowMgr::height() { return buffer.h; }
 
 void TtyWindowMgr::resetBuffer() {
-    // favoring C-like pointer over iterator for performance
-    TtyPixel* pixel { buffer.pixel(0, 0) };
-    uint32_t buffer_sz ( buffer.w * buffer.h );
-    for (uint32_t i { 0 }; i < buffer_sz; ++i, ++pixel)
-        pixel->c = ' ';
+    buffer = TtyPixelBuffer(buffer.w, buffer.h);
 }
 
 void TtyWindowMgr::drawEmptyFrame() {
@@ -210,14 +206,14 @@ void TtyWindowMgr::drawEmptyFrame() {
 }
 
 void TtyWindowMgr::initialize(const Settings& settings,
-                              const uint16_t /*layout_h*/) {
+                              const uint16_t layout_h) {
     // Use of ttyname taken from coreutils tty, see:
     //  - https://github.com/coreutils/coreutils/blob/master/src/tty.c
     tty_name = safeCExec(ttyname, "ttyname",
                          C_RETURN_TEST(char *, (ret == nullptr)),
                          STDIN_FILENO);
 
-    fitToWindow(settings.map_proportion, 0/*layout_h, unused*/);
+    fitToWindow(settings.map_proportion, layout_h);
 
     // TBD: eventually change to map of texture keys representing floor/ceiling/walls
     // dummmy texture at index 0, as map tile 0 represents non-wall tile
@@ -247,7 +243,9 @@ void TtyWindowMgr::fitToWindow(const double map_proportion,
     struct winsize winsz;
     safeCExec(ioctl, "ioctl", C_RETURN_TEST(int, (ret == -1)),
               STDIN_FILENO, TIOCGWINSZ, &winsz);
-    buffer.resize(winsz.ws_col, winsz.ws_row);
+    // replacing rather than resizing buffer due to stray map and hud chars not
+    //   being overwritten when not in ascii mode
+    buffer = TtyPixelBuffer(winsz.ws_col, winsz.ws_row);
 
     // set minimap w,h in chars
     assert(map_proportion > 0);

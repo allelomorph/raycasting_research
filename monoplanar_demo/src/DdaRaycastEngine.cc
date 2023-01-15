@@ -21,13 +21,17 @@ Vector2d DdaRaycastEngine::rotateVector2d(const Vector2d& vec,
     };
 }
 
-void DdaRaycastEngine::fitToWindow(const uint16_t w, const uint16_t h) {
+void DdaRaycastEngine::fitToWindow(const bool tty_io,
+                                   const uint16_t w, const uint16_t h) {
     screen_w = w;
     fov_rays.resize(screen_w);
 
     // widen FOV to match aspect ratio to always render square-looking wall units
     double curr_aspect_ratio { double(w) / h };
-    double target_view_plane_mag { curr_aspect_ratio / ASPECT_RATIO_TO_VIEW_PLANE_MAG_RATIO };
+    double target_view_plane_mag { curr_aspect_ratio /
+                                   (tty_io ?
+                                    CHAR_PX_ASPECT_RATIO_TO_VIEW_PLANE_MAG_RATIO :
+                                    ASPECT_RATIO_TO_VIEW_PLANE_MAG_RATIO) };
     double curr_view_plane_mag { std::sqrt(
             (view_plane(0) * view_plane(0)) +
             (view_plane(1) * view_plane(1)) ) };

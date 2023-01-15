@@ -70,7 +70,7 @@ void App::initialize() {
         window_mgr = std::unique_ptr<SdlWindowMgr>(new SdlWindowMgr());
     window_mgr->initialize(settings, raycast_engine.layout.h);
 
-    raycast_engine.fitToWindow(window_mgr->width(), window_mgr->height());
+    raycast_engine.fitToWindow(tty_io, window_mgr->width(), window_mgr->height());
 
     if (tty_io) {
         kbd_input_mgr = std::unique_ptr<LinuxKbdInputMgr>(
@@ -99,7 +99,7 @@ void App::run() {
             // TBD: passing layout dims only while using old-style map HUD
             window_mgr->fitToWindow(settings.map_proportion,
                                    raycast_engine.layout.h);
-            raycast_engine.fitToWindow(window_mgr->width(),
+            raycast_engine.fitToWindow(tty_io, window_mgr->width(),
                                        window_mgr->height());
 
             sigwinch_received = 0;
@@ -146,7 +146,7 @@ void App::getEvents() {
                     e.window.windowID == window_mgr->id() ) {
                     window_mgr->fitToWindow(settings.map_proportion,
                                            raycast_engine.layout.h);
-                    raycast_engine.fitToWindow(window_mgr->width(),
+                    raycast_engine.fitToWindow(tty_io, window_mgr->width(),
                                                window_mgr->height());
                 }
                 break;

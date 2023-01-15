@@ -11,15 +11,7 @@
 
 
 enum class WallOrientation { NS, EW };
-/*
-struct FovRay {
-    Vector2d        dir;            // ray direction
-    double          wall_dist;      // distance to first wall collision
-    WallOrientation type_wall_hit;  // NS or EW alignment of wall hit
-    // TBD: SDL_Texture* wall_texture, or
-    // TBD: uint16_t map_x, map_y
-};
-*/
+
 struct FovRay {
 private:
     struct WallHit {
@@ -48,6 +40,10 @@ private:
     //   in rendered view (calibrated from reference (627w:480h):0.666666 =
     //   1.959375, rounded up as calibration was by eye)
     static constexpr double ASPECT_RATIO_TO_VIEW_PLANE_MAG_RATIO { 2 };
+    // when in tty mode, the "pixels," or monospace terminal characters, are not
+    //   square, but 1w:2h, so we compensate with the inverse
+    static constexpr double CHAR_PX_ASPECT_RATIO_TO_VIEW_PLANE_MAG_RATIO {
+        ASPECT_RATIO_TO_VIEW_PLANE_MAG_RATIO * 2 };
 
 public:
     // position vector (player x and y coordinates on map grid)
@@ -69,16 +65,13 @@ public:
     //   perpendicular and of constant magnitude.
     Vector2d view_plane { 1, 0 };
 
-    // view_plane << 0.66666, 0;  // orig
-    // view_plane << 0.90696, 0;  // square walls
-
     uint16_t screen_w;
-    // float fov_angle;
     std::vector<FovRay> fov_rays;
 
     Layout layout;
 
-    void fitToWindow(const uint16_t w, const uint16_t h);
+    void fitToWindow(const bool tty_io,
+                     const uint16_t w, const uint16_t h);
 
     inline void loadMapFile(const std::string& map_filename) {
         layout.loadMapFile(map_filename, player_pos);

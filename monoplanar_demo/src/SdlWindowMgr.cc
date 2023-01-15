@@ -319,7 +319,7 @@ void SdlWindowMgr::renderHud(const double pt_frame_duration_mvg_avg,
     SDL_SetRenderDrawColor(renderer.get(), 0x00, 0x00, 0x00, SDL_ALPHA_OPAQUE);
 
     if (settings.show_fps || settings.debug_mode) {
-        std::sprintf(line, "PTFPS:%6.2f RTFPS:%6.2f",
+        std::sprintf(line, "PTFPS: %6.2f RTFPS: %6.2f",
                      (1 / pt_frame_duration_mvg_avg),
                      (1 / rt_frame_duration_mvg_avg) );
         renderHudLine(line, glyph_rect);
@@ -331,8 +331,8 @@ void SdlWindowMgr::renderHud(const double pt_frame_duration_mvg_avg,
                      settings.show_fps, settings.show_map);
         renderHudLine(line, glyph_rect);
         glyph_rect.y += glyph_rect.h;
-        std::sprintf(line, "debug_mode(F3): %i fisheye(F4): %i",
-                     settings.debug_mode, settings.fisheye);
+        std::sprintf(line, "debug_mode(F3): %i euclidean(F4): %i",
+                     settings.debug_mode, settings.euclidean);
         renderHudLine(line, glyph_rect);
 
         // -ddd.ddd format
@@ -350,31 +350,26 @@ void SdlWindowMgr::renderHud(const double pt_frame_duration_mvg_avg,
         renderHudLine(line, glyph_rect);
 
         glyph_rect.y += glyph_rect.h;
-        std::sprintf(line, "window size: %3u h %4u w",
-                     window_h, window_w);
+        std::sprintf(line, "window: %4uw : %4uh (%8.6f)",
+                     window_w, window_h, (double(window_w) / window_h));
         renderHudLine(line, glyph_rect);
 
-        // TBD: add final key layout
         glyph_rect.y += glyph_rect.h;
         std::sprintf(line, "user input keys:");
         renderHudLine(line, glyph_rect);
-
         glyph_rect.y += glyph_rect.h;
         std::sprintf(line, "down: %i right: %i up: %i left: %i",
-                     kbd_input_mgr->isPressed(SDLK_DOWN), kbd_input_mgr->isPressed(SDLK_RIGHT),
-                     kbd_input_mgr->isPressed(SDLK_UP), kbd_input_mgr->isPressed(SDLK_LEFT));
+                     kbd_input_mgr->isPressed(SDLK_DOWN),
+                     kbd_input_mgr->isPressed(SDLK_RIGHT),
+                     kbd_input_mgr->isPressed(SDLK_UP),
+                     kbd_input_mgr->isPressed(SDLK_LEFT));
         renderHudLine(line, glyph_rect);
-
-        double vpmag { std::sqrt(
-                (raycast_engine.view_plane(0) * raycast_engine.view_plane(0)) +
-                (raycast_engine.view_plane(1) * raycast_engine.view_plane(1)) ) };
         glyph_rect.y += glyph_rect.h;
-        std::sprintf(line, "view_plane mag: %8.6f", vpmag);
-        renderHudLine(line, glyph_rect);
-
-        double aspect_ratio { double(window_w) / window_h };
-        glyph_rect.y += glyph_rect.h;
-        std::sprintf(line, "aspect ratio: %8.6f", aspect_ratio);
+        std::sprintf(line, "Lshft:%i Rshft:%i Lalt:%i Ralt:%i",
+                     kbd_input_mgr->isPressed(SDLK_LSHIFT),
+                     kbd_input_mgr->isPressed(SDLK_RSHIFT),
+                     kbd_input_mgr->isPressed(SDLK_LALT),
+                     kbd_input_mgr->isPressed(SDLK_RALT));
         renderHudLine(line, glyph_rect);
     }
 }

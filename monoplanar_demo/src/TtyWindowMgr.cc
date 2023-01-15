@@ -286,19 +286,20 @@ void TtyWindowMgr::renderMap(const DdaRaycastEngine& raycast_engine) {
     if (minimap_h < 5 || minimap_w >= buffer.w)
         return;
     std::string line;
-    uint16_t display_row_i { 0 };
     uint16_t bordered_map_w ( minimap_w + 2 );
+    uint16_t window_col_i ( buffer.w - bordered_map_w );
+    uint16_t window_row_i { 0 };
     // top border
     line.resize(bordered_map_w, ' ');
-    buffer.pixelCharReplace(0, display_row_i,
-                                   line.c_str(), bordered_map_w);
-    ++display_row_i;
+    buffer.pixelCharReplace(window_col_i, window_row_i,
+                            line.c_str(), bordered_map_w);
+    ++window_row_i;
     const uint16_t player_x ( raycast_engine.player_pos(0) );
     const uint16_t player_y ( raycast_engine.player_pos(1) );
     const uint16_t map_delta_y ( minimap_h / 2 );
     const uint16_t map_delta_x ( minimap_w / 2 );
     for (int16_t map_y ( player_y + map_delta_y );
-         map_y >= player_y - map_delta_y; --map_y, ++display_row_i) {
+         map_y >= player_y - map_delta_y; --map_y, ++window_row_i) {
         line.clear();
         line.push_back(' ');  // left border
         for (int16_t map_x ( player_x - map_delta_x );
@@ -336,14 +337,14 @@ void TtyWindowMgr::renderMap(const DdaRaycastEngine& raycast_engine) {
                 player_icon = '~';
             line[bordered_map_w / 2] = player_icon;
         }
-        buffer.pixelCharReplace(0, display_row_i,
-                                       line.c_str(), bordered_map_w);
+        buffer.pixelCharReplace(window_col_i, window_row_i,
+                                line.c_str(), bordered_map_w);
     }
     // bottom border
     line.clear();
     line.resize(bordered_map_w, ' ');
-    buffer.pixelCharReplace(0, display_row_i,
-                                   line.c_str(), bordered_map_w);
+    buffer.pixelCharReplace(window_col_i, window_row_i,
+                            line.c_str(), bordered_map_w);
 }
 
 void TtyWindowMgr::renderHud(const double pt_frame_duration_mvg_avg,
@@ -351,78 +352,57 @@ void TtyWindowMgr::renderHud(const double pt_frame_duration_mvg_avg,
                              const Settings& settings,
                              const DdaRaycastEngine& raycast_engine,
                              const KbdInputMgr* kbd_input_mgr) {
-    //      PTFPS: 4---.2-  RTFPS: 4---.2-
-    //
-    //     stop: 0 show_fps: 0 show_map: 0
-    //      player_pos: {3--.3--, 3--.3--}
-    //      player_dir: {3--.3--, 3--.3--}
-    //      view_plane: {3--.3--, 3--.3--}
-    //           window size: 3-- h 4--- w
-    //                    user input keys:
-    //      down: 0 right: 0 up: 0 left: 0
-    //    player dir angle from +x: 3--.2-
-    //
-
     // Using sprintf over idiomatic C++ to get exact precision on floating
     //   point values (not using C++20, so std::format is not an option.)
-    char hud_line[50] { '\0' };
-    std::size_t hud_line_sz;
-    uint16_t replace_col_i;
+    char line[50] { '\0' };
+    std::size_t line_sz;
     if (settings.show_fps || settings.debug_mode) {
-        // display FPS at top right in dddd.dd format (no negative values
-        //   should appear)
-        std::sprintf(hud_line, " PTFPS: %7.2f  RTFPS: %7.2f",
-                     (1 / pt_frame_duration_mvg_avg),
-                     (1 / rt_frame_duration_mvg_avg) );
-        hud_line_sz = std::strlen(hud_line);
-        replace_col_i = buffer.w - hud_line_sz;
-        buffer.pixelCharReplace(replace_col_i, 0, hud_line, hud_line_sz);
-        // blank border of same length underneath
-        std::memset(hud_line, ' ', hud_line_sz);
-        hud_line[hud_line_sz] = '\0';
-        buffer.pixelCharReplace(replace_col_i, 1, hud_line, hud_line_sz);
+        line_sz = std::sprintf(line, "PTFPS: %6.2f RTFPS: %6.2f ",
+                               (1 / pt_frame_duration_mvg_avg),
+                               (1 / rt_frame_duration_mvg_avg) );
+        buffer.pixelCharReplace(0, 0, line, line_sz);
     }
 
-    if (settings.debug_mode && buffer.h >= 11) {
-        // TBD: add final list of settings
-        std::sprintf(hud_line, "     stop: X show_fps: %i show_map: %i",
-                     settings.show_fps, settings.show_map);
-        hud_line_sz = std::strlen(hud_line);
-        // right justified (all lines should be left padded to equal length)
-        replace_col_i = buffer.w - hud_line_sz;
+    if (settings.debug_mode && buffer.h >= 10) {
+        line_sz = std::sprintf(line, "show_fps(F1): %i show_map(F2): %i ",
+                               settings.show_fps, settings.show_map);
+        buffer.pixelCharReplace(0, 1, line, line_sz);
+        line_sz = std::sprintf(line, "debug_mode(F3): %i euclidean(F4): %i ",
+                               settings.debug_mode, settings.euclidean);
+        buffer.pixelCharReplace(0, 2, line, line_sz);
 
         // -ddd.ddd format
-        buffer.pixelCharReplace(replace_col_i, 2, hud_line, hud_line_sz);
-        std::sprintf(hud_line, "    player_pos: {%8.3f, %8.3f}",
-                     raycast_engine.player_pos(0), raycast_engine.player_pos(1));
-        buffer.pixelCharReplace(replace_col_i, 3, hud_line, hud_line_sz);
-        std::sprintf(hud_line, "    player_dir: {%8.3f, %8.3f}",
-                     raycast_engine.player_dir(0), raycast_engine.player_dir(1));
-        buffer.pixelCharReplace(replace_col_i, 4, hud_line, hud_line_sz);
-        std::sprintf(hud_line, "    view_plane: {%8.3f, %8.3f}",
-                     raycast_engine.view_plane(0), raycast_engine.view_plane(1));
-        buffer.pixelCharReplace(replace_col_i, 5, hud_line, hud_line_sz);
+        line_sz = std::sprintf(line, "player_pos: {%8.3f, %8.3f} ",
+                               raycast_engine.player_pos(0),
+                               raycast_engine.player_pos(1));
+        buffer.pixelCharReplace(0, 3, line, line_sz);
+        line_sz = std::sprintf(line, "player_dir: {%8.3f, %8.3f} ",
+                               raycast_engine.player_dir(0),
+                               raycast_engine.player_dir(1));
+        buffer.pixelCharReplace(0, 4, line, line_sz);
+        line_sz = std::sprintf(line, "view_plane: {%8.3f, %8.3f} ",
+                               raycast_engine.view_plane(0),
+                               raycast_engine.view_plane(1));
+        buffer.pixelCharReplace(0, 5, line, line_sz);
 
-        std::sprintf(hud_line, "           window size: %3u h %4u w",
-                     buffer.h, buffer.w);
-        buffer.pixelCharReplace(replace_col_i, 6, hud_line, hud_line_sz);
+        line_sz = std::sprintf(line, "window: %4uw : %4uh (%8.6f) ",
+                               buffer.w, buffer.h, (double(buffer.w) / buffer.h));
+        buffer.pixelCharReplace(0, 6, line, line_sz);
 
-        // TBD: add final key layout
-        std::sprintf(hud_line, "                    user input keys:");
-        buffer.pixelCharReplace(replace_col_i, 7, hud_line, hud_line_sz);
-        std::sprintf(hud_line, "      down: %i right: %i up: %i left: %i",
-                     kbd_input_mgr->isPressed(KEY_DOWN), kbd_input_mgr->isPressed(KEY_RIGHT),
-                     kbd_input_mgr->isPressed(KEY_UP), kbd_input_mgr->isPressed(KEY_LEFT));
-        buffer.pixelCharReplace(replace_col_i, 8, hud_line, hud_line_sz);
-
-        std::sprintf(hud_line, "   player dir angle from +x: %7.2f",
-                     vectorAngle(raycast_engine.player_dir) );
-        buffer.pixelCharReplace(replace_col_i, 9, hud_line, hud_line_sz);
-
-        // final blank border line
-        std::memset(hud_line, ' ', hud_line_sz);
-        hud_line[hud_line_sz] = '\0';
-        buffer.pixelCharReplace(replace_col_i, 10, hud_line, hud_line_sz);
+        line_sz = std::sprintf(line, "user input keys: ");
+        buffer.pixelCharReplace(0, 7, line, line_sz);
+        line_sz = std::sprintf(line, "down: %i right: %i up: %i left: %i ",
+                               kbd_input_mgr->isPressed(KEY_DOWN),
+                               kbd_input_mgr->isPressed(KEY_RIGHT),
+                               kbd_input_mgr->isPressed(KEY_UP),
+                               kbd_input_mgr->isPressed(KEY_LEFT));
+        buffer.pixelCharReplace(0, 8, line, line_sz);
+        line_sz = std::sprintf(line, "Lshft:%i Rshft:%i Lalt:%i Ralt:%i ",
+                               kbd_input_mgr->isPressed(KEY_LEFTSHIFT),
+                               kbd_input_mgr->isPressed(KEY_RIGHTSHIFT),
+                               kbd_input_mgr->isPressed(KEY_LEFTALT),
+                               kbd_input_mgr->isPressed(KEY_RIGHTALT));
+        buffer.pixelCharReplace(0, 9, line, line_sz);
     }
 }
 

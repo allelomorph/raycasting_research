@@ -38,7 +38,7 @@ private:
     //
     bool    tty_io   { true };
     bool    stop     { false };
-    bool    pause    { false };
+    // bool    pause    { false };
 
     // frame timing
     //

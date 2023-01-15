@@ -237,9 +237,9 @@ void App::updateFromLinuxInput() {
     if (kbd_input_mgr->keyDownThisFrame(KEY_F3))
         settings.debug_mode = !settings.debug_mode;
 
-    // F4 key: toggle fisheye camera mode
+    // F4 key: toggle euclidean camera mode
     if (kbd_input_mgr->keyDownThisFrame(KEY_F4))
-        settings.fisheye = !settings.fisheye;
+        settings.euclidean = !settings.euclidean;
 
     // F10 key: ascii pixels in tty mode
     if (kbd_input_mgr->keyDownThisFrame(KEY_F10))
@@ -334,9 +334,9 @@ void App::updateFromSdlInput() {
     if (kbd_input_mgr->keyDownThisFrame(SDLK_F3))
         settings.debug_mode = !settings.debug_mode;
 
-    // F4 key: toggle fisheye camera mode
+    // F4 key: toggle euclidean camera mode
     if (kbd_input_mgr->keyDownThisFrame(SDLK_F4))
-        settings.fisheye = !settings.fisheye;
+        settings.euclidean = !settings.euclidean;
 
     kbd_input_mgr->decayToAutorepeat();
 }

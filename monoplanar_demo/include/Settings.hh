@@ -18,7 +18,7 @@ struct Settings {
 
     // when true, use real ray distance to wall rather than perpendicular
     //   camera plane distance
-    bool            fisheye             { false };
+    bool            euclidean           { false };
 
     // used to determine player movement speed, as pegged to frame rate
     double          base_movement_rate  { 5.0 };

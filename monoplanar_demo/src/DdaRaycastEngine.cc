@@ -116,12 +116,15 @@ void DdaRaycastEngine::castRay(const uint16_t screen_x,
 
     // Calculate distance to wall hit from camera plane, moving
     //   perpendicular to the camera plane. If the actual length of the
-    //   ray cast from player to wall were used, the result would be
+    //   ray cast from player to wall is used, one can observe a projection
+    //   that is more distorted as one approaches the wall.
+
+    // TBD: this paragarph is now conjecture: ", the expected result would be
     //   a fisheye effect. For example, if the player were squarely
     //   facing a wall (wall parallel to camera plane,) in the resulting
     //   render the wall should appear of even height. If using the
     //   length of the rays as they hit the wall, the wall would instead
-    //   appear to taper to the left and right ends of the display.
+    //   appear to taper to the left and right ends of the display."
     //
     // One way to calculate the perpendicular camera plane distance would be
     //   to use the formula for shortest distance from a point to a line,
@@ -135,11 +138,10 @@ void DdaRaycastEngine::castRay(const uint16_t screen_x,
     //   going one step back in the casting, as in the DDA loop above we went
     //   one step further to end up inside the wall.
 
-    // TBD: double check these
-    if (settings.fisheye) {  // Euclidean ray distance from player_pos
+    if (settings.euclidean) {  // actual ray distance from player_pos
         ray.wall_hit.dist = (ray.wall_hit.algnmt == WallOrientation::NS) ?
             dist_next_unit_x : dist_next_unit_y;
-    } else {                // perpendicular distance from camera plane
+    } else {                   // perpendicular distance from camera plane
         ray.wall_hit.dist = (ray.wall_hit.algnmt == WallOrientation::NS) ?
             dist_next_unit_x - dist_per_unit_x :
             dist_next_unit_y - dist_per_unit_y;

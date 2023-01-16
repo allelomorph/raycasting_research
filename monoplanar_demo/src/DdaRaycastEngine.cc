@@ -46,8 +46,7 @@ void DdaRaycastEngine::castRay(const uint16_t screen_x,
     //   screen x coordinate, calculated so that the left edge of the
     //   camera plane is -1.0, center 0.0, and right edge is 1.0
     double camera_x { 2 * screen_x / double(screen_w) - 1 };
-
-    FovRay& ray { fov_rays[screen_x] };
+    FovRay ray;
 
     // ray origin is player_pos
     // multiply camera_plane vector by scalar x, then add to direction vector
@@ -155,6 +154,8 @@ void DdaRaycastEngine::castRay(const uint16_t screen_x,
             player_pos(1) + (ray.wall_hit.dist * ray.dir(1));
     // Expressed as fraction of 1 grid unit (0.0 on the left)
     ray.wall_hit.x -= std::floor(ray.wall_hit.x);
+
+    fov_rays[screen_x] = ray;
 }
 
 void DdaRaycastEngine::castRays(const Settings& settings) {

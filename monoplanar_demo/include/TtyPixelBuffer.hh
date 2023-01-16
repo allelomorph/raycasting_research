@@ -8,16 +8,16 @@
 #include <vector>
 
 
-using BgColorData = Xterm::Color::Data;
-
 // tty pixels only need to record char background color, which is used as
 //   pixel color with default ' '
+using BgColorData = Xterm::Color::Data;
+
 struct TtyPixel : public BgColorData {
     char c { ' ' };
 
     TtyPixel() {}
-    TtyPixel(const uint8_t _c, const uint8_t _code) :
-        BgColorData(_code), c(_c) {}
+    TtyPixel(const uint8_t _c, const uint8_t code) :
+        BgColorData(code), c(_c) {}
     TtyPixel(const uint8_t _c, const uint8_t r, const uint8_t g, const uint8_t b) :
         BgColorData(r, g, b), c(_c) {}
 };

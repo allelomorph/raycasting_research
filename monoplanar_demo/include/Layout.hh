@@ -1,7 +1,6 @@
 #ifndef LAYOUT_HH
 #define LAYOUT_HH
 
-// #include "Matrix.hh"  // Vector2d
 #include "Vector2d.hh"
 
 #include <cstdint>    // uint16_t

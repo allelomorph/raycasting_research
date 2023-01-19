@@ -1,5 +1,4 @@
 #include "Layout.hh"
-// #include "Matrix.hh"  // Vector2d
 #include "Vector2d.hh"
 
 #include <iostream>

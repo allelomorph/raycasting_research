@@ -1,6 +1,6 @@
 #include "Vector2d.hh"
 
-#include <cmath>  // atan M_PI
+#include <cmath>  // atan cos sin
 
 
 Vector2d Vector2d::operator+(const Vector2d other) {

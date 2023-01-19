@@ -8,6 +8,8 @@
 #define VECTOR2D_HH
 
 
+#include <cmath>        // M_PI
+
 #include <type_traits>  // enable_if
 
 

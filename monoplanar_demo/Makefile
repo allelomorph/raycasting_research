@@ -31,13 +31,13 @@ MP_FILE_STEMS := \
 	TtyPixelBuffer \
 	sdl_unique_ptrs \
 	SdlWindowMgr \
-	SdlKbdInputMgr
+	SdlKbdInputMgr \
+	Vector2d
 
 PATHLESS_MP_SRC         := $(addsuffix .cc, $(MP_FILE_STEMS))
 PATHLESS_MP_SRC_HEADERS := $(addsuffix .hh, $(MP_FILE_STEMS))
 PATHLESS_MP_HEADER_ONLY := \
 	KeyState.hh \
-	Matrix.hh \
 	Settings.hh \
 	WindowMgr.hh
 

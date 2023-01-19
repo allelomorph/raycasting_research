@@ -1,5 +1,6 @@
 #include "Layout.hh"
-#include "Matrix.hh"   // Vector2d
+// #include "Matrix.hh"  // Vector2d
+#include "Vector2d.hh"
 
 #include <iostream>
 #include <algorithm>   // max
@@ -65,16 +66,16 @@ void Layout::loadMapFile(const std::string& map_filename, Vector2d& player_pos) 
                 }
                 chosen_start_exists = true;
                 viable_start_exists = true;
-                player_pos(0) = col_i;  // x
-                player_pos(1) = row_i;  // y
+                player_pos.x = col_i;  // x
+                player_pos.y = row_i;  // y
                 tile(col_i, row_ct - 1 - row_i) = 0;
             } else if (std::isdigit(line[col_i - 1])) {
                 // default start is first empty map tile found
                 //   (most northern, then eastern)
                 if (!viable_start_exists && line[col_i - 1] == '0') {
                     viable_start_exists = true;
-                    player_pos(0) = col_i;  // x
-                    player_pos(1) = row_i;  // y
+                    player_pos.x = col_i;  // x
+                    player_pos.y = row_i;  // y
                 }
                 // TBD: idiomatic conversion to integer?
                 tile(col_i, row_i) = line[col_i - 1] - '0';
@@ -98,8 +99,8 @@ void Layout::loadMapFile(const std::string& map_filename, Vector2d& player_pos) 
     }
 
     // +0.5 to each dim to start in the center of designated grid square
-    player_pos(0) += 0.5;
-    player_pos(1) += 0.5;
+    player_pos.x += 0.5;
+    player_pos.y += 0.5;
 
     std::cout << "Parsed map file: " << map_filename << "\n";
 }

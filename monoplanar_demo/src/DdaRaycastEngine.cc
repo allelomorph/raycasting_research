@@ -4,23 +4,6 @@
 #include <cmath>     // cos, sin, sqrt
 
 
-Vector2d DdaRaycastEngine::rotateVector2d(const Vector2d& vec,
-                                          const double radians) {
-    /*
-      Matrix2d rotate;
-      rotate <<
-          std::cos(rot_speed), -std::sin(rot_speed),
-          std::sin(rot_speed), std::cos(rot_speed);
-      return (rotate * vector);
-    */
-    // TBD: currently using manual transposition of vector rotation formula;
-    //   debug the above rotation matrix population order
-    return Vector2d {
-        std::cos(radians) * vec(0) - std::sin(radians) * vec(1),
-        std::sin(radians) * vec(0) + std::cos(radians) * vec(1)
-    };
-}
-
 void DdaRaycastEngine::fitToWindow(const bool tty_io,
                                    const uint16_t w, const uint16_t h) {
     screen_w = w;
@@ -33,11 +16,11 @@ void DdaRaycastEngine::fitToWindow(const bool tty_io,
                                     CHAR_PX_ASPECT_RATIO_TO_VIEW_PLANE_MAG_RATIO :
                                     ASPECT_RATIO_TO_VIEW_PLANE_MAG_RATIO) };
     double curr_view_plane_mag { std::sqrt(
-            (view_plane(0) * view_plane(0)) +
-            (view_plane(1) * view_plane(1)) ) };
+            (view_plane.x * view_plane.x) +
+            (view_plane.y * view_plane.y) ) };
     double target_vpm_to_curr_vpm_ratio { target_view_plane_mag / curr_view_plane_mag };
-    view_plane(0) *= target_vpm_to_curr_vpm_ratio;
-    view_plane(1) *= target_vpm_to_curr_vpm_ratio;
+    view_plane.x *= target_vpm_to_curr_vpm_ratio;
+    view_plane.y *= target_vpm_to_curr_vpm_ratio;
 }
 
 void DdaRaycastEngine::castRay(const uint16_t screen_x,
@@ -54,8 +37,8 @@ void DdaRaycastEngine::castRay(const uint16_t screen_x,
     ray.dir = player_dir + (view_plane * camera_x);
 
     // current map grid coordinates of ray
-    uint16_t map_x ( player_pos(0) );
-    uint16_t map_y ( player_pos(1) );
+    uint16_t map_x ( player_pos.x );
+    uint16_t map_y ( player_pos.y );
 
     // Initially the distances from the ray origin (player position) to its
     //   first intersections with a map unit grid vertical and horizonal,
@@ -68,8 +51,8 @@ void DdaRaycastEngine::castRay(const uint16_t screen_x,
     // distances the ray has to travel to go from one unit grid vertical
     //   to the next, or one horizontal to the next, respectively
     // IEEE 754 floating point values in C++ protect against division by 0
-    double dist_per_unit_x { std::abs(1 / ray.dir(0)) };
-    double dist_per_unit_y { std::abs(1 / ray.dir(1)) };
+    double dist_per_unit_x { std::abs(1 / ray.dir.x) };
+    double dist_per_unit_y { std::abs(1 / ray.dir.y) };
 
     // DDA algorithm will always jump exactly one map grid square each
     //   loop, either in the x or y. These vars record those increments,
@@ -78,19 +61,19 @@ void DdaRaycastEngine::castRay(const uint16_t screen_x,
     int8_t map_step_y;
 
     // setup map grid step and initial ray distance to next grid unit values
-    if (ray.dir(0) < 0) {
+    if (ray.dir.x < 0) {
         map_step_x = -1;
-        dist_next_unit_x = (player_pos(0) - map_x) * dist_per_unit_x;
+        dist_next_unit_x = (player_pos.x - map_x) * dist_per_unit_x;
     } else {
         map_step_x = 1;
-        dist_next_unit_x = (map_x + 1.0 - player_pos(0)) * dist_per_unit_x;
+        dist_next_unit_x = (map_x + 1.0 - player_pos.x) * dist_per_unit_x;
     }
-    if (ray.dir(1) < 0) {
+    if (ray.dir.y < 0) {
         map_step_y = -1;
-        dist_next_unit_y = (player_pos(1) - map_y) * dist_per_unit_y;
+        dist_next_unit_y = (player_pos.y - map_y) * dist_per_unit_y;
     } else {
         map_step_y = 1;
-        dist_next_unit_y = (map_y + 1.0 - player_pos(1)) * dist_per_unit_y;
+        dist_next_unit_y = (map_y + 1.0 - player_pos.y) * dist_per_unit_y;
     }
 
     // perform DDA algo, or the incremental casting of the ray
@@ -150,8 +133,8 @@ void DdaRaycastEngine::castRay(const uint16_t screen_x,
     //   into x coordinate in wall segment as seen from the perspective of a
     //   player facing the wall.
     ray.wall_hit.x = (ray.wall_hit.algnmt == WallOrientation::EW) ?
-            player_pos(0) + (ray.wall_hit.dist * ray.dir(0)) :
-            player_pos(1) + (ray.wall_hit.dist * ray.dir(1));
+            player_pos.x + (ray.wall_hit.dist * ray.dir.x) :
+            player_pos.y + (ray.wall_hit.dist * ray.dir.y);
     // Expressed as fraction of 1 grid unit (0.0 on the left)
     ray.wall_hit.x -= std::floor(ray.wall_hit.x);
 
@@ -166,46 +149,46 @@ void DdaRaycastEngine::castRays(const Settings& settings) {
 
 // CCW
 void DdaRaycastEngine::playerTurnLeft(const double rot_speed) {
-    player_dir = rotateVector2d(player_dir, rot_speed);
-    view_plane = rotateVector2d(view_plane, rot_speed);
+    player_dir.rotate(rot_speed);
+    view_plane.rotate(rot_speed);
 }
 
 // CW
 void DdaRaycastEngine::playerTurnRight(const double rot_speed) {
-    player_dir = rotateVector2d(player_dir, -rot_speed);
-    view_plane = rotateVector2d(view_plane, -rot_speed);
+    player_dir.rotate(-rot_speed);
+    view_plane.rotate(-rot_speed);
 }
 
 // Vector2d is { x, y }
 void DdaRaycastEngine::playerStrafeLeft(const double move_speed) {
-    double start_ppx { player_pos(0) };
-    if (!layout.tileIsWall(player_pos(0) - player_dir(1) * move_speed, player_pos(1)))
-        player_pos(0) -= player_dir(1) * move_speed;
-    if (!layout.tileIsWall(start_ppx, player_pos(1) + player_dir(0) * move_speed))
-        player_pos(1) += player_dir(0) * move_speed;
+    double start_ppx { player_pos.x };
+    if (!layout.tileIsWall(player_pos.x - player_dir.y * move_speed, player_pos.y))
+        player_pos.x -= player_dir.y * move_speed;
+    if (!layout.tileIsWall(start_ppx, player_pos.y + player_dir.x * move_speed))
+        player_pos.y += player_dir.x * move_speed;
 }
 
 void DdaRaycastEngine::playerStrafeRight(const double move_speed) {
-    double start_ppx { player_pos(0) };
-    if (!layout.tileIsWall(player_pos(0) + player_dir(1) * move_speed, player_pos(1)))
-        player_pos(0) += player_dir(1) * move_speed;
-    if (!layout.tileIsWall(start_ppx, player_pos(1) - player_dir(0) * move_speed))
-        player_pos(1) -= player_dir(0) * move_speed;
+    double start_ppx { player_pos.x };
+    if (!layout.tileIsWall(player_pos.x + player_dir.y * move_speed, player_pos.y))
+        player_pos.x += player_dir.y * move_speed;
+    if (!layout.tileIsWall(start_ppx, player_pos.y - player_dir.x * move_speed))
+        player_pos.y -= player_dir.x * move_speed;
 }
 
 // Vector2d is { x, y }
 void DdaRaycastEngine::playerMoveFwd(const double move_speed) {
-    double start_ppx { player_pos(0) };
-    if (!layout.tileIsWall(player_pos(0) + player_dir(0) * move_speed, player_pos(1)))
-        player_pos(0) += player_dir(0) * move_speed;
-    if (!layout.tileIsWall(start_ppx, player_pos(1) + player_dir(1) * move_speed))
-        player_pos(1) += player_dir(1) * move_speed;
+    double start_ppx { player_pos.x };
+    if (!layout.tileIsWall(player_pos.x + player_dir.x * move_speed, player_pos.y))
+        player_pos.x += player_dir.x * move_speed;
+    if (!layout.tileIsWall(start_ppx, player_pos.y + player_dir.y * move_speed))
+        player_pos.y += player_dir.y * move_speed;
 }
 
 void DdaRaycastEngine::playerMoveBack(const double move_speed) {
-    double start_ppx { player_pos(0) };
-    if (!layout.tileIsWall(player_pos(0) - player_dir(0) * move_speed, player_pos(1)))
-        player_pos(0) -= player_dir(0) * move_speed;
-    if (!layout.tileIsWall(start_ppx, player_pos(1) - player_dir(1) * move_speed))
-        player_pos(1) -= player_dir(1) * move_speed;
+    double start_ppx { player_pos.x };
+    if (!layout.tileIsWall(player_pos.x - player_dir.x * move_speed, player_pos.y))
+        player_pos.x -= player_dir.x * move_speed;
+    if (!layout.tileIsWall(start_ppx, player_pos.y - player_dir.y * move_speed))
+        player_pos.y -= player_dir.y * move_speed;
 }

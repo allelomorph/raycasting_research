@@ -72,8 +72,8 @@ void SdlWindowMgr::renderPixelColumn(const uint16_t screen_x,
     SDL_Surface* texture { wall_texs.at(ray.wall_hit.tex_key).get() };
     uint16_t tex_x ( ray.wall_hit.x * texture->w );
     // ensure texture x of 0 is always to the left when facing the wall segment
-    if ((ray.wall_hit.algnmt == WallOrientation::NS && ray.dir(0) > 0) ||
-        (ray.wall_hit.algnmt == WallOrientation::EW && ray.dir(1) < 0) ) {
+    if ((ray.wall_hit.algnmt == WallOrientation::NS && ray.dir.x > 0) ||
+        (ray.wall_hit.algnmt == WallOrientation::EW && ray.dir.y < 0) ) {
         tex_x = texture->w - tex_x - 1;
     }
 
@@ -276,8 +276,8 @@ void SdlWindowMgr::renderMap(const DdaRaycastEngine& raycast_engine) {
     // empty map coordinates drawn in light grey; walls implied via negative space
     const Layout& layout { raycast_engine.layout };
     SDL_Rect map_tile { /*x*/0, /*y*/0, /*w*/1, /*h*/1 };
-    const uint16_t player_x ( raycast_engine.player_pos(0) );
-    const uint16_t player_y ( raycast_engine.player_pos(1) );
+    const uint16_t player_x ( raycast_engine.player_pos.x );
+    const uint16_t player_y ( raycast_engine.player_pos.y );
     const uint16_t map_delta ( MINIMAP_GRID_SZ / 2 );
     for (int16_t map_y ( player_y + map_delta );
          map_y >= player_y - map_delta; --map_y, map_tile.x = 0, ++map_tile.y) {
@@ -338,15 +338,18 @@ void SdlWindowMgr::renderHud(const double pt_frame_duration_mvg_avg,
         // -ddd.ddd format
         glyph_rect.y += glyph_rect.h;
         std::sprintf(line, "player_pos: {%8.3f, %8.3f}",
-                     raycast_engine.player_pos(0), raycast_engine.player_pos(1));
+                     raycast_engine.player_pos.x,
+                     raycast_engine.player_pos.y);
         renderHudLine(line, glyph_rect);
         glyph_rect.y += glyph_rect.h;
         std::sprintf(line, "player_dir: {%8.3f, %8.3f}",
-                     raycast_engine.player_dir(0), raycast_engine.player_dir(1));
+                     raycast_engine.player_dir.x,
+                     raycast_engine.player_dir.y);
         renderHudLine(line, glyph_rect);
         glyph_rect.y += glyph_rect.h;
         std::sprintf(line, "view_plane: {%8.3f, %8.3f}",
-                     raycast_engine.view_plane(0), raycast_engine.view_plane(1));
+                     raycast_engine.view_plane.x,
+                     raycast_engine.view_plane.y);
         renderHudLine(line, glyph_rect);
 
         glyph_rect.y += glyph_rect.h;

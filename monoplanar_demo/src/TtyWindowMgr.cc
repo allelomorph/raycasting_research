@@ -11,7 +11,6 @@
 #include <linux/input-event-codes.h>  // KEY_*
 
 #include <cassert>
-#include <cmath>                      // sin cos M_PI modf
 #include <cstdio>                     // sprintf
 #include <cstring>                    // strlen memset
 
@@ -164,8 +163,8 @@ void TtyWindowMgr::renderPixelColumn(const uint16_t screen_x,
     SDL_Surface* texture { wall_texs.at(ray.wall_hit.tex_key).get() };
     uint16_t tex_x ( ray.wall_hit.x * texture->w );
     // ensure texture x of 0 is always to the left when facing the wall segment
-    if ((ray.wall_hit.algnmt == WallOrientation::NS && ray.dir(0) > 0) ||
-        (ray.wall_hit.algnmt == WallOrientation::EW && ray.dir(1) < 0) ) {
+    if ((ray.wall_hit.algnmt == WallOrientation::NS && ray.dir.x > 0) ||
+        (ray.wall_hit.algnmt == WallOrientation::EW && ray.dir.y < 0) ) {
         tex_x = texture->w - tex_x - 1;
     }
 
@@ -256,29 +255,12 @@ void TtyWindowMgr::fitToWindow(const double map_proportion,
     minimap_w = (minimap_h * 2) + 1;
 }
 
-
 void TtyWindowMgr::renderView(const std::vector<FovRay>& fov_rays,
                                const Settings& settings) {
     TtyDisplayMode tty_display_mode { settings.tty_display_mode };
     for (uint16_t screen_x { 0 }; screen_x < buffer.w; ++screen_x) {
         renderPixelColumn(screen_x, fov_rays[screen_x], tty_display_mode);
     }
-}
-
-// TBD: move to Vector2d
-// https://stackoverflow.com/questions/6247153/angle-from-2d-unit-vector
-constexpr inline double radiansToDegrees(const double radians) {
-    return radians * (180 / M_PI);
-}
-
-// TBD: move to Vector2d
-double vectorAngle(const Vector2d& vec) {
-    double angle { radiansToDegrees(std::atan(vec(1) / vec(0))) };
-    if (vec(0) < 0)  // quadrant II or III
-         angle = 180 + angle;  // subtracts
-    else if (vec(1) < 0)  // quadrant IV
-         angle = 270 + (90 + angle);  // subtracts
-    return angle;
 }
 
 void TtyWindowMgr::renderMap(const DdaRaycastEngine& raycast_engine) {
@@ -294,8 +276,8 @@ void TtyWindowMgr::renderMap(const DdaRaycastEngine& raycast_engine) {
     buffer.pixelCharReplace(window_col_i, window_row_i,
                             line.c_str(), bordered_map_w);
     ++window_row_i;
-    const uint16_t player_x ( raycast_engine.player_pos(0) );
-    const uint16_t player_y ( raycast_engine.player_pos(1) );
+    const uint16_t player_x ( raycast_engine.player_pos.x );
+    const uint16_t player_y ( raycast_engine.player_pos.y );
     const uint16_t map_delta_y ( minimap_h / 2 );
     const uint16_t map_delta_x ( minimap_w / 2 );
     for (int16_t map_y ( player_y + map_delta_y );
@@ -316,7 +298,7 @@ void TtyWindowMgr::renderMap(const DdaRaycastEngine& raycast_engine) {
         line.push_back(' ');  // right border
         if (map_y == player_y) {
             char player_icon;
-            double player_dir_angle { vectorAngle(raycast_engine.player_dir) };
+            double player_dir_angle { raycast_engine.player_dir.angle() };
             if (player_dir_angle < 22.5)
                 player_icon = '~';
             else if (player_dir_angle < 67.5)
@@ -373,16 +355,16 @@ void TtyWindowMgr::renderHud(const double pt_frame_duration_mvg_avg,
 
         // -ddd.ddd format
         line_sz = std::sprintf(line, "player_pos: {%8.3f, %8.3f} ",
-                               raycast_engine.player_pos(0),
-                               raycast_engine.player_pos(1));
+                               raycast_engine.player_pos.x,
+                               raycast_engine.player_pos.y);
         buffer.pixelCharReplace(0, 3, line, line_sz);
         line_sz = std::sprintf(line, "player_dir: {%8.3f, %8.3f} ",
-                               raycast_engine.player_dir(0),
-                               raycast_engine.player_dir(1));
+                               raycast_engine.player_dir.x,
+                               raycast_engine.player_dir.y);
         buffer.pixelCharReplace(0, 4, line, line_sz);
         line_sz = std::sprintf(line, "view_plane: {%8.3f, %8.3f} ",
-                               raycast_engine.view_plane(0),
-                               raycast_engine.view_plane(1));
+                               raycast_engine.view_plane.x,
+                               raycast_engine.view_plane.y);
         buffer.pixelCharReplace(0, 5, line, line_sz);
 
         line_sz = std::sprintf(line, "window: %4uw : %4uh (%8.6f) ",

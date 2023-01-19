@@ -1,7 +1,8 @@
 #ifndef DDARAYCASTENGINE_HH
 #define DDARAYCASTENGINE_HH
 
-#include "Matrix.hh"    // Vector2d
+// #include "Matrix.hh"    // Vector2d
+#include "Vector2d.hh"
 #include "Layout.hh"
 #include "Settings.hh"
 

@@ -13,9 +13,9 @@
 #include <cstring>            // memset
 
 
-// Need to be global to be visible to sigaction
-volatile std::sig_atomic_t sigint_sigterm_received = 0;
-volatile std::sig_atomic_t sigwinch_received = 0;
+// global to be visible to sigaction
+volatile std::sig_atomic_t sigint_sigterm_received { 0 };
+volatile std::sig_atomic_t sigwinch_received       { 0 };
 
 static void sigint_sigterm_handler(int /*signal*/) {
     sigint_sigterm_received = 1;
@@ -32,7 +32,7 @@ App::App(const char* efn, const std::string& mfn,
         settings.tty_display_mode = tty_display_mode;
 
     // wall textures are loaded with IMG_Load even when in tty mode,
-    //   and SDL subsystems needed to report errors, so init regardless
+    //   with SDL subsystems needed to report errors, so init regardless
     safeSdlExec(SDL_Init, "SDL_Init", SDL_RETURN_TEST(int, ret != 0),
                 tty_io ? 0 : SDL_INIT_VIDEO);
 }
@@ -83,7 +83,6 @@ void App::initialize() {
 void App::run() {
     initialize();
 
-    // TBD: better consolidate these two tests
     while(!sigint_sigterm_received && !stop) {
         pt_fps_calc.calculate();
         rt_fps_calc.calculate();
@@ -96,9 +95,8 @@ void App::run() {
             // terminal window size changes require rehiding the cursor
             std::cout << Xterm::CtrlSeqs::HideCursor();
 
-            // TBD: passing layout dims only while using old-style map HUD
             window_mgr->fitToWindow(settings.map_proportion,
-                                   raycast_engine.layout.h);
+                                    raycast_engine.layout.h);
             raycast_engine.fitToWindow(tty_io, window_mgr->width(),
                                        window_mgr->height());
 
@@ -111,10 +109,11 @@ void App::run() {
         if (settings.show_map)
             window_mgr->renderMap(raycast_engine);
         window_mgr->renderHud(pt_fps_calc.frame_duration_mvg_avg,
-                             rt_fps_calc.frame_duration_mvg_avg.count(),
-                             settings, raycast_engine, kbd_input_mgr.get());
+                              rt_fps_calc.frame_duration_mvg_avg.count(),
+                              settings, raycast_engine, kbd_input_mgr.get());
 
-        // TBD: debug errors on terminal window size changes
+        // second opportunity to abort drawing frame if SIGWINCH received
+        //   during casting/rendering
         if (tty_io && sigwinch_received)
             continue;
 
@@ -138,7 +137,7 @@ void App::getEvents() {
                 stop = true;
                 break;
             case SDL_WINDOWEVENT:
-                // SDL_AddEventWatch not appopropriate for window size changes
+                // SDL_AddEventWatch not appropriate for window size changes
                 //   due to filter function's possible execution in a separate
                 //   thread: modification of the display buffer size asynchronous
                 //   to pixel getting/setting would likely cause segfaults

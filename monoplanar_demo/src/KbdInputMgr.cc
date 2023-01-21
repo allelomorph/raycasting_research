@@ -1,7 +1,8 @@
 #include "KbdInputMgr.hh"
 
+
 bool KbdInputMgr::keyDownThisFrame(const int32_t keysym) const {
-    // remember that operator[] inserts a new key if not found
+    // operator[] inserts a new key if not found
     auto ks_it { key_states.find(keysym) };
     if (ks_it != key_states.end())
         return (ks_it->second.keyDownThisFrame());
@@ -9,7 +10,7 @@ bool KbdInputMgr::keyDownThisFrame(const int32_t keysym) const {
 }
 
 bool KbdInputMgr::isPressed(const int32_t keysym) const {
-    // remember that operator[] inserts a new key if not found
+    // operator[] inserts a new key if not found
     auto ks_it { key_states.find(keysym) };
     if (ks_it != key_states.end())
         return (ks_it->second.isPressed());
@@ -17,7 +18,7 @@ bool KbdInputMgr::isPressed(const int32_t keysym) const {
 }
 
 bool KbdInputMgr::isReleased(const int32_t keysym) const {
-    // remember that operator[] inserts a new key if not found
+    // operator[] inserts a new key if not found
     auto ks_it { key_states.find(keysym) };
     if (ks_it != key_states.end())
         return (ks_it->second.isReleased());

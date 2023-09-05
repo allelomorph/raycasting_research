@@ -75,12 +75,195 @@
    fun:main
 }
 
+
+## Begin suppressions for errors reported while drawing window with X11
+
 {
-   libLLVM_reachable
+   xcb_writev_to_uninitialized_struct_iovec_array
+   Memcheck:Param
+   writev(vector[...])
+   fun:__writev
+   fun:writev
+   obj:/usr/lib/x86_64-linux-gnu/libxcb.so.1.1.0
+   obj:/usr/lib/x86_64-linux-gnu/libxcb.so.1.1.0
+   fun:xcb_writev
+   fun:_XSend
+   obj:/usr/lib/x86_64-linux-gnu/libX11.so.6.3.0
+   obj:/usr/lib/x86_64-linux-gnu/libX11.so.6.3.0
+   fun:XPutImage
+   obj:/usr/lib/x86_64-linux-gnu/libGLX_mesa.so.0.0.0
+   obj:/usr/lib/x86_64-linux-gnu/libGLX_mesa.so.0.0.0
+   obj:/usr/lib/x86_64-linux-gnu/dri/swrast_dri.so
+   obj:/usr/lib/x86_64-linux-gnu/dri/swrast_dri.so
+}
+
+## End suppressions for errors reported while drawing window with X11
+
+
+## SDL_Renderer allocation in App::initialize handled by unique_ptr
+
+{
+   App::initialize_SdlRendererUnqPtr_possible
+   Memcheck:Leak
+   match-leak-kinds: possible
+   ...
+   obj:/usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.10.0
+   fun:_Z11safeSdlExecIPFP12SDL_RendererP10SDL_WindowijES1_JS3_i17SDL_RendererFlagsEET0_T_RKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEPFbS7_EDpT1_
+   fun:_ZN13SdlDisplayMgr10initializeERK8Settingstt
+}
+
+{
+   SdlDisplayMgr::initialize_SdlRendererUnqPtr_indirect
+   Memcheck:Leak
+   match-leak-kinds: indirect
+   ...
+   obj:/usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.10.0
+   fun:_Z11safeSdlExecIPFP12SDL_RendererP10SDL_WindowijES1_JS3_i17SDL_RendererFlagsEET0_T_RKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEPFbS7_EDpT1_
+   fun:_ZN13SdlDisplayMgr10initializeERK8Settingstt
+   ...
+}
+
+{
+   SdlDisplayMgr::fitToWindow_SdlTextureUngPtr_possible
+   Memcheck:Leak
+   match-leak-kinds: possible
+   ...
+   obj:/usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.10.0
+   fun:_Z11safeSdlExecIPFP11SDL_TextureP12SDL_RendererjiiiES1_JS3_j17SDL_TextureAccessttEET0_T_RKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEPFbS7_EDpT1_
+   fun:_ZN13SdlDisplayMgr11fitToWindowEdtt
+   ...
+}
+
+{
+   <insert_a_suppression_name_here>
+   Memcheck:Leak
+   match-leak-kinds: possible
+   fun:calloc
+   obj:*
+   obj:*
+   obj:/usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.10.0
+   obj:/usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.10.0
+   fun:_Z11safeSdlExecIPFP11SDL_TextureP12SDL_RendererjiiiES1_JS3_j17SDL_TextureAccessttEET0_T_RKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEPFbS7_EDpT1_
+   fun:_ZN13SdlDisplayMgr11fitToWindowEdtt
+   fun:_ZN13SdlDisplayMgr10initializeERK8Settingstt
+   fun:_ZN3App10initializeEv
+   fun:_ZN3App3runEv
+   fun:main
+}
+
+
+## SDL_Init
+
+{
+   SDL_Init_XSetLocaleModifiers_1B_definite
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:_XlcDefaultMapModifiers
+   fun:XSetLocaleModifiers
+   obj:/usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.10.0
+   obj:/usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.10.0
+   obj:/usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.10.0
+   obj:/usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.10.0
+   fun:_Z11safeSdlExecIPFijEiJjEET0_T_RKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEPFbS2_EDpT1_
+   fun:_ZN3AppC1EPKcRKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEb14TtyDisplayMode
+   fun:main
+}
+
+## missing debug symbols, but consistent call stack
+
+{
+   11_stack_malloc_possible
+   Memcheck:Leak
+   match-leak-kinds: possible
+   fun:malloc
+   obj:*
+   obj:*
+   obj:*
+   obj:*
+   obj:*
+   obj:*
+   obj:*
+   obj:*
+   obj:*
+   obj:*
+   obj:*
+}
+
+{
+   11_stack_calloc_possible
+   Memcheck:Leak
+   match-leak-kinds: possible
+   fun:calloc
+   obj:*
+   obj:*
+   obj:*
+   obj:*
+   obj:*
+   obj:*
+   obj:*
+   obj:*
+   obj:*
+   obj:*
+   obj:*
+}
+
+{
+   10_stack_strdup_possible
+   Memcheck:Leak
+   match-leak-kinds: indirect
+   fun:malloc
+   fun:strdup
+   obj:*
+   obj:*
+   obj:*
+   obj:*
+   obj:*
+   obj:*
+   obj:*
+   obj:*
+   obj:*
+   obj:*
+}
+
+## libraries
+
+{
+   libSDL2-2.0.so.0.10.0_unknown_possible
+   Memcheck:Leak
+   match-leak-kinds: possible
+   ...
+   obj:/usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.10.0
+}
+
+{
+   libGLX.so.0.0.0_glXCreateContext_possible
+   Memcheck:Leak
+   match-leak-kinds: possible
+   ...
+   fun:glXCreateContext
+   ...
+}
+
+{
+   libLLVM-12.so.1_LLVMContextCreate_reachable
    Memcheck:Leak
    match-leak-kinds: reachable
    ...
    obj:/usr/lib/x86_64-linux-gnu/libLLVM-12.so.1
+   ...
+   fun:LLVMContextCreate
+   ...
+}
+
+{
+   libLLVM-12.so.1_LLVMContextCreate_possible
+   Memcheck:Leak
+   match-leak-kinds: possible
+   ...
+   obj:/usr/lib/x86_64-linux-gnu/libLLVM-12.so.1
+   ...
+   fun:LLVMContextCreate
    ...
 }
 
@@ -99,6 +282,15 @@
    match-leak-kinds: definite
    ...
    obj:/usr/lib/x86_64-linux-gnu/libGLX.so.0.0.0
+   ...
+}
+
+{
+   glXCreateContext_possible
+   Memcheck:Leak
+   match-leak-kinds: possible
+   ...
+   fun:glXCreateContext
    ...
 }
 
@@ -137,5 +329,3 @@
    fun:_dl_catch_exception
    ...
 }
-
-## End suppressions for leaks reported after `SDL_CreateWindow(...); SDL_DestroyWindow(...);`

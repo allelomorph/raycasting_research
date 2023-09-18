@@ -48,6 +48,7 @@ void LinuxKbdInputMgr::grabDevice(const std::string& exec_filename) {
                 "on this tty until ungrab message appears." };
         ofs << '\n';
         ofs << msg_border << '\n';
+        // man getpid(2): function is always successful, no need for safeCExec
         ofs << '\t' << msg_line_1_prefix << static_cast<int>(getpid()) <<
             ": " << exec_filename << msg_line_1_suffix << '\n';
         ofs << '\t' << msg_line_2 << '\n';
@@ -72,6 +73,7 @@ void LinuxKbdInputMgr::ungrabDevice() {
             static constexpr char msg_line_1_suffix[] { " is no longer grabbing keyboard events." };
             ofs << '\n';
             ofs << msg_border << '\n';
+            // man getpid(2): function is always successful, no need for safeCExec
             ofs << '\t' << msg_line_1_prefix << static_cast<int>(getpid()) <<
                 msg_line_1_suffix << '\n';
             ofs << msg_border << '\n';
@@ -238,7 +240,7 @@ std::string LinuxKbdInputMgr::determineInputTty() {
     if (!valid_input_tty_found) {
         std::ostringstream error_msg;
         error_msg << __FUNCTION__ << ": No non-pty tty found, cannot capture " <<
-            " any keyboard events" << std::endl;
+            "any keyboard events" << std::endl;
         throw std::runtime_error(error_msg.str());
     }
 

@@ -1,9 +1,18 @@
 # TBD add list params to handle all <LANG> and <CONFIG> variations (plus VS refnames, globals, and xcode attributes?)
 # https://cmake.org/cmake/help/v3.16/manual/cmake-properties.7.html#properties-on-targets
+# CMP0026 and LOCATION: https://stackoverflow.com/a/58244245
+
 function(test_target target)
-  if(TARGET ${target})
-    message("${target} PROPERTIES")
-    foreach(prop
+  if(NOT TARGET ${target})
+    return()
+  endif()
+
+  # Push the current (NEW) CMake policy onto the stack, and apply the OLD policy
+  cmake_policy(PUSH)
+  cmake_policy(SET CMP0026 OLD)
+
+  message("${target} PROPERTIES")
+  foreach(prop
         ADDITIONAL_CLEAN_FILES
         ALIASED_TARGET
         ANDROID_ANT_ADDITIONAL_OPTIONS
@@ -313,5 +322,8 @@ function(test_target target)
         message("    ${prop}: ${val}")
       endif()
     endforeach()
-  endif()
+
+    # Pop the previous policy from the stack to re-apply the NEW behavior
+    cmake_policy(POP)
+
 endfunction()

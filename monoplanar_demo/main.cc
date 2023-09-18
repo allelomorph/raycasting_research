@@ -33,13 +33,13 @@ static void printUsage(const char* exec_filename) {
         "\n" <<
         "\t-X\n" <<
         "\t--SDL\t\t Display and keyboard capture via SDL2/X11\n" <<
-        "\t\t\t (game X11 window will open)\n" <<
+        "\t\t\t (game X11 window will open) (default I/O mode)\n" <<
         "\n" <<
         "\t-t(=ttymode)\n" <<
         "\t--tty(=ttymode)\t Display via tty, keyboard capture through direct device grab\n" <<
         "\t\t\t (requires running as root user or as member of input group)\n" <<
         "\t\t\t ttymode determines pixel rendering as:\n" <<
-        "\t\t\t   ascii: monochrome characters (default)\n" <<
+        "\t\t\t   ascii: monochrome characters (default tty mode)\n" <<
         "\t\t\t   code/256color/1byte: terminal background colors (256 color mode)\n" <<
         "\t\t\t   rgb/truecolor/3byte: terminal background colors (true (RGB) color mode)\n" <<
         std::endl;

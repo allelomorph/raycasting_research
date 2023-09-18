@@ -151,7 +151,7 @@ int main(const int argc, char* const argv[]) {
 
     if (getOptions(argc, argv, map_filename, io_mode, tty_display_mode) != 0) {
         printUsage(argv[0]);
-        return (EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
 
     if (io_mode == IoMode::Uninitialized)
@@ -162,13 +162,14 @@ int main(const int argc, char* const argv[]) {
     try {
         App app(argv[0], map_filename, (io_mode == IoMode::Tty), tty_display_mode);
         app.run();
-    } catch (const std::exception& e) {
+    } catch (const std::runtime_error& rte) {
         // sudden failure of app in tty mode can leave cursor hidden or terminal
         //   bg color set
         if (io_mode == IoMode::Tty) {
             std::cout << Xterm::CtrlSeqs::CharDefaults() <<
                 Xterm::CtrlSeqs::ShowCursor();
         }
-        throw e;
+        std::cerr << argv[0] << " runtime error: " << rte.what() << std::endl;
+        return EXIT_FAILURE;
     }
 }

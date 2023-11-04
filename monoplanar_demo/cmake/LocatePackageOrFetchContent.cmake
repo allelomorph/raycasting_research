@@ -9,7 +9,8 @@ FetchContent"
 
 # find_package integration in FetchContent requires cmake 3.24:
 #   https://cmake.org/cmake/help/v3.27/guide/using-dependencies/index.html#fetchcontent-and-find-package-integration
-# findPackageOrFetchContent roughly emulates this behavior for lower versions of cmake
+# LocatePackageOrFetchContent roughly emulates this behavior for lower versions
+#   of cmake
 # !!! this relies on scripts used by find_package creating INTERFACE library
 #   targets with the same "namespaced" naming as ALIAS targets created by
 #   FetchContent

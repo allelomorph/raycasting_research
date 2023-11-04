@@ -9,6 +9,7 @@ function(test_target target)
 
   # Push the current (NEW) CMake policy onto the stack, and apply the OLD policy
   cmake_policy(PUSH)
+  # setting to OLD will emit warning
   cmake_policy(SET CMP0026 OLD)
 
   message("${target} PROPERTIES")

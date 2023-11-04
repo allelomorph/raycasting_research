@@ -1,4 +1,4 @@
-// Adapted from https://github.com/mentalisttraceur/errnoname/blob/main/errnoname.c
+// Adapted from https://github.com/mentalisttraceur/errnoname/blob/c3a3d81cff0f91c809ee930d0f5aa68508935f26/errnoname.c
 // See original repo for errno name collection and updating scripts
 
 // Note: Use of designated initializers (`[index] = value`) requires C99 and
@@ -1065,6 +1065,7 @@ Under the following compilation conditions:
 - Ubuntu 20.04.3 (Focal Fossa) LTS
 - Linux 5.4.0-128-generic
 - gcc (Ubuntu 9.4.0-1ubuntu1~20.04.1) 9.4.0
+- GNU C Library (Ubuntu GLIBC 2.31-0ubuntu9.7) stable release version 2.31
 
 `names` is populated like so:
 

@@ -21,8 +21,8 @@ class SdlWindowMgr : public WindowMgr {
 private:
     static constexpr uint16_t WINDOW_HEIGHT { 480 };
     static constexpr uint16_t WINDOW_WIDTH { 853 };  // 853:480 ~ 16:9
-    static constexpr char SKY_TEX_PATH[] { "../images/Vue1.jpg" };
-    static constexpr char FONT_PATH[] { "../fonts/Courier New.ttf" };
+    static constexpr char SKY_TEX_PATH[] { "images/Vue1.jpg" };
+    static constexpr char FONT_PATH[] { "fonts/Courier New.ttf" };
 
     // functors for SDL struct pointer deallocations
     //
@@ -98,7 +98,6 @@ public:
 
     void renderMap(const DdaRaycastEngine& raycast_engine);
 
-    // TBD: change to KbdInputMgr*?
     void renderHud(const double pt_frame_duration_mvg_avg,
                    const double rt_frame_duration_mvg_avg,
                    const Settings& settings,

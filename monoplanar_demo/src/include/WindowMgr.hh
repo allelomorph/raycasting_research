@@ -22,14 +22,14 @@ protected:
     // ordered so that indices match texture indices in wall_texs
     static constexpr std::array<const char*, 10> wall_tex_paths {
         "",
-        "../images/wood.jpg",
-        "../images/metal.jpg",
-        "../images/curtain.jpg",
-        "../images/stone_moss.jpg",
-        "../images/bark.jpg",
-        "../images/privat_parkering.jpg",
-        "../images/grass.jpg",
-        "../images/lava.jpg",
+        "images/wood.jpg",
+        "images/metal.jpg",
+        "images/curtain.jpg",
+        "images/stone_moss.jpg",
+        "images/bark.jpg",
+        "images/privat_parkering.jpg",
+        "images/grass.jpg",
+        "images/lava.jpg",
         ""
     };
 

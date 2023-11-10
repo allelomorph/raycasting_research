@@ -52,8 +52,8 @@ find_library(SDL2_IMAGE_LIBRARY
 unset(VC_LIB_PATH_SUFFIX)
 
 # set SDL2_IMAGE_VERSION
-include(GetSDLVersionFromHeader)
-GetSDLVersionFromHeader(SDL2_IMAGE SDL_IMAGE SDL_image.h)
+include(SDLVersionStringFromHeader)
+SDL_version_string_from_header(SDL2_IMAGE SDL_IMAGE SDL_image.h)
 
 set(SDL2_IMAGE_LIBRARIES ${SDL2_IMAGE_LIBRARY})
 set(SDL2_IMAGE_INCLUDE_DIRS ${SDL2_IMAGE_INCLUDE_DIR})

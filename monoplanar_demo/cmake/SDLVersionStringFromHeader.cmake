@@ -1,4 +1,4 @@
-function(GetSDLVersionFromHeader
+function(SDL_version_string_from_header
     VAR_PREFIX            # string eg SDL2_IMAGE
     MACRO_PREFIX          # string eg SDL_IMAGE
     HEADER_FILE           # string eg SDL_image.h

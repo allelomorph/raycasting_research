@@ -54,8 +54,8 @@ list(APPEND SDL2_LIBRARIES "${SDL2MAIN_LIBRARY}")
 unset(VC_LIB_PATH_SUFFIX)
 
 # set SDL2_VERSION
-include(GetSDLVersionFromHeader)
-GetSDLVersionFromHeader(SDL2 SDL SDL_version.h)
+include(SDLVersionStringFromHeader)
+SDL_version_string_from_header(SDL2 SDL SDL_version.h)
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(SDL2

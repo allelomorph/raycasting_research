@@ -52,8 +52,8 @@ find_library(SDL2_TTF_LIBRARY
 unset(VC_LIB_PATH_SUFFIX)
 
 # set SDL2_TTF_VERSION
-include(GetSDLVersionFromHeader)
-GetSDLVersionFromHeader(SDL2_TTF SDL_TTF SDL_ttf.h)
+include(SDLVersionStringFromHeader)
+SDL_version_string_from_header(SDL2_TTF SDL_TTF SDL_ttf.h)
 
 set(SDL2_TTF_LIBRARIES ${SDL2_TTF_LIBRARY})
 set(SDL2_TTF_INCLUDE_DIRS ${SDL2_TTF_INCLUDE_DIR})

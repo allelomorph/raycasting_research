@@ -1,5 +1,5 @@
 #include "LinuxKbdInputMgr.hh"
-#include "safeCExec.hh"
+#include "safeLibcCall.hh"
 
 #include <sys/types.h>     // open pid_t
 #include <sys/stat.h>      // open
@@ -26,13 +26,13 @@ constexpr char LinuxKbdInputMgr::INPUT_EVENT_PATH_PREFIX[];
 constexpr char LinuxKbdInputMgr::INPUT_DEVICES_PATH[];
 
 void LinuxKbdInputMgr::grabDevice(const std::string& exec_filename) {
-    kbd_device_fd = safeCExec(open, "open", C_RETURN_TEST(int, (ret == -1)),
+    kbd_device_fd = safeLibcCall(open, "open", C_RETURN_TEST(int, (ret == -1)),
                               kbd_device_path.c_str(), O_RDONLY);
     try {
-        safeCExec(ioctl, "ioctl", C_RETURN_TEST(int, (ret == -1)),
+        safeLibcCall(ioctl, "ioctl", C_RETURN_TEST(int, (ret == -1)),
                   kbd_device_fd, EVIOCGRAB, (void*)1);
     } catch (std::runtime_error& re) {
-        safeCExec(ioctl, "ioctl", C_RETURN_TEST(int, (ret == -1)),
+        safeLibcCall(ioctl, "ioctl", C_RETURN_TEST(int, (ret == -1)),
                   kbd_device_fd, EVIOCGRAB, (void*)0);
         throw re;
     }
@@ -48,7 +48,7 @@ void LinuxKbdInputMgr::grabDevice(const std::string& exec_filename) {
                 "on this tty until ungrab message appears." };
         ofs << '\n';
         ofs << msg_border << '\n';
-        // man getpid(2): function is always successful, no need for safeCExec
+        // man getpid(2): function is always successful, no need for safeLibcCall
         ofs << '\t' << msg_line_1_prefix << static_cast<int>(getpid()) <<
             ": " << exec_filename << msg_line_1_suffix << '\n';
         ofs << '\t' << msg_line_2 << '\n';
@@ -59,9 +59,9 @@ void LinuxKbdInputMgr::grabDevice(const std::string& exec_filename) {
 
 void LinuxKbdInputMgr::ungrabDevice() {
     if (kbd_device_fd != UNINITIALIZED_FD) {
-        safeCExec(ioctl, "ioctl", C_RETURN_TEST(int, (ret == -1)),
+        safeLibcCall(ioctl, "ioctl", C_RETURN_TEST(int, (ret == -1)),
                   kbd_device_fd, EVIOCGRAB, (void*)0);
-        safeCExec(close, "close", C_RETURN_TEST(int, (ret == -1)),
+        safeLibcCall(close, "close", C_RETURN_TEST(int, (ret == -1)),
                   kbd_device_fd);
         std::ofstream ofs;
         ofs.open(input_tty_name);
@@ -73,7 +73,7 @@ void LinuxKbdInputMgr::ungrabDevice() {
             static constexpr char msg_line_1_suffix[] { " is no longer grabbing keyboard events." };
             ofs << '\n';
             ofs << msg_border << '\n';
-            // man getpid(2): function is always successful, no need for safeCExec
+            // man getpid(2): function is always successful, no need for safeLibcCall
             ofs << '\t' << msg_line_1_prefix << static_cast<int>(getpid()) <<
                 msg_line_1_suffix << '\n';
             ofs << msg_border << '\n';
@@ -196,7 +196,7 @@ std::string LinuxKbdInputMgr::determineInputDevice() {
 std::string LinuxKbdInputMgr::determineInputTty() {
     // Use of ttyname taken from coreutils tty, see:
     //  - https://github.com/coreutils/coreutils/blob/master/src/tty.c
-    std::string curr_tty_name { safeCExec(ttyname, "ttyname",
+    std::string curr_tty_name { safeLibcCall(ttyname, "ttyname",
                                           C_RETURN_TEST(char *, (ret == nullptr)),
                                           STDIN_FILENO) };
     char *SSH_TTY { getenv("SSH_TTY") };
@@ -216,7 +216,7 @@ std::string LinuxKbdInputMgr::determineInputTty() {
     // Note: man 3 getutent prescribes calling setutent first as a best practice,
     //   but in testing it fails here with ENOENT, so we ignore that case
     // opens _PATH_UTMP (eg /var/run/utmp)
-    safeCExec(setutent, "setutent", C_ERRNO_TEST( (err != ENOENT) ));
+    safeLibcCall(setutent, "setutent", C_ERRNO_TEST( (err != ENOENT) ));
     while ((ut = getutent()) != nullptr) {
         // USER_PROCESS: normal process with attached username that is not LOGIN
         if (ut->ut_type == USER_PROCESS) {
@@ -235,7 +235,7 @@ std::string LinuxKbdInputMgr::determineInputTty() {
         }
     }
     // closes _PATH_UTMP
-    safeCExec(endutent, "endutent");
+    safeLibcCall(endutent, "endutent");
 
     if (!valid_input_tty_found) {
         std::ostringstream error_msg;
@@ -298,12 +298,12 @@ void LinuxKbdInputMgr::consumeKeyEvents() {
     struct timeval tv { select_timeout };
     // select could be interrupted by a signal and return failure (likely cases
     //   in this application are SIGTERM, SIGINT, or SIGWINCH)
-    safeCExec(select, "select", C_RETURN_ERRNO_TEST(int, (ret == -1 && err != EINTR)),
+    safeLibcCall(select, "select", C_RETURN_ERRNO_TEST(int, (ret == -1 && err != EINTR)),
               kbd_device_fd + 1, &rdfds, nullptr, nullptr, &tv);
     // select() interrupted by a signal, or did it time out?
     if (errno == EINTR || !FD_ISSET(kbd_device_fd, &rdfds))
         return;
-    ssize_t rd { safeCExec(read, "read", C_RETURN_TEST(ssize_t, (ret == -1)),
+    ssize_t rd { safeLibcCall(read, "read", C_RETURN_TEST(ssize_t, (ret == -1)),
                            kbd_device_fd, ev, sizeof(ev)) };
     if (rd < (ssize_t)sizeof(struct input_event)) {
         error_oss << __FUNCTION__ << ": expected to read at least " <<

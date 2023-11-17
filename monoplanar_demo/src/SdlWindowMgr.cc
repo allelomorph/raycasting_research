@@ -1,5 +1,5 @@
 #include "SdlWindowMgr.hh"
-#include "safeSdlExec.hh"      // SDL_RETURN_TEST
+#include "safeSdlCall.hh"      // SDL_RETURN_TEST
 #include "sdl_unique_ptrs.hh"  // *UnqPtr
 
 #include <SDL2/SDL_image.h>    // IMG_*
@@ -15,7 +15,7 @@
 void SdlWindowMgr::makeGlyphs(const char* font_filename) {
     // reference for font size ratio is 16pt on 480p window, or 1/30 window_h
     SdlTtfFontUnqPtr font (
-        safeSdlExec(TTF_OpenFont, "TTF_OpenFont",
+        safeSdlCall(TTF_OpenFont, "TTF_OpenFont",
                     SDL_RETURN_TEST(TTF_Font*, ret == nullptr),
                     font_filename, window_h / 30 /*ptsize*/),
         ttf_font_deleter);
@@ -28,12 +28,12 @@ void SdlWindowMgr::makeGlyphs(const char* font_filename) {
     // fill font cache with set of all printable ascii chars
     for (char c { ' ' }; c <= '~'; ++c) {
         SdlSurfaceUnqPtr glyph_surface (
-            safeSdlExec(TTF_RenderGlyph_Blended, "TTF_RenderGlyph_Blended",
+            safeSdlCall(TTF_RenderGlyph_Blended, "TTF_RenderGlyph_Blended",
                         SDL_RETURN_TEST(SDL_Surface*, ret == nullptr),
                         _font, c, fg),
             surface_deleter);
         font_cache[c] = SdlTextureUnqPtr (
-            safeSdlExec(SDL_CreateTextureFromSurface, "SDL_CreateTextureFromSurface",
+            safeSdlCall(SDL_CreateTextureFromSurface, "SDL_CreateTextureFromSurface",
                         SDL_RETURN_TEST(SDL_Texture*, ret == nullptr),
                         _renderer, glyph_surface.get()),
             texture_deleter);
@@ -122,10 +122,10 @@ void SdlWindowMgr::renderPixelColumn(const uint16_t screen_x,
 SdlWindowMgr::SdlWindowMgr() {
     // SDL_Init in App()
     // image subsystem for texture loading
-    safeSdlExec(IMG_Init, "IMG_Init", SDL_RETURN_TEST(int, (ret == 0)),
+    safeSdlCall(IMG_Init, "IMG_Init", SDL_RETURN_TEST(int, (ret == 0)),
                 IMG_INIT_JPG);
     // tff font subsystem for fps text
-    safeSdlExec(TTF_Init, "TTF_Init", SDL_RETURN_TEST(int, (ret == -1)) );
+    safeSdlCall(TTF_Init, "TTF_Init", SDL_RETURN_TEST(int, (ret == -1)) );
 }
 
 SdlWindowMgr::~SdlWindowMgr() {
@@ -135,7 +135,7 @@ SdlWindowMgr::~SdlWindowMgr() {
 }
 
 uint32_t SdlWindowMgr::id() {
-    return safeSdlExec(SDL_GetWindowID, "SDL_GetWindowID",
+    return safeSdlCall(SDL_GetWindowID, "SDL_GetWindowID",
                        SDL_RETURN_TEST(uint32_t, ret == 0),
                        window.get());
 }
@@ -150,7 +150,7 @@ void SdlWindowMgr::initialize(const Settings& settings,
     // init window and window buffer
     //
     window = SdlWindowUnqPtr(
-        safeSdlExec(SDL_CreateWindow, "SDL_CreateWindow",
+        safeSdlCall(SDL_CreateWindow, "SDL_CreateWindow",
                     SDL_RETURN_TEST(SDL_Window*, ret == nullptr),
                     "monoplanar raycast demo" /*name*/,
                     SDL_WINDOWPOS_CENTERED /*x*/, SDL_WINDOWPOS_CENTERED /*y*/,
@@ -162,7 +162,7 @@ void SdlWindowMgr::initialize(const Settings& settings,
     //   blendmodes? SDL_SetRenderDrawBlendMode(renderer.get(), SDL_BLENDMODE_BLEND)
     //   ( == 0 on success)
     renderer = SdlRendererUnqPtr(
-        safeSdlExec(SDL_CreateRenderer, "SDL_CreateRenderer",
+        safeSdlCall(SDL_CreateRenderer, "SDL_CreateRenderer",
                     SDL_RETURN_TEST(SDL_Renderer*, ret == nullptr),
                     window.get(), -1 /*driver index (first to support flags)*/,
                     SDL_RENDERER_ACCELERATED /*flags*/),
@@ -175,18 +175,18 @@ void SdlWindowMgr::initialize(const Settings& settings,
     // init textures other than font cache
     //
     SdlSurfaceUnqPtr sky_surface (
-        safeSdlExec(IMG_Load, "IMG_Load",
+        safeSdlCall(IMG_Load, "IMG_Load",
                     SDL_RETURN_TEST(SDL_Surface*, (ret == nullptr)),
                     SKY_TEX_PATH),
         surface_deleter);
     std::cout << "Loaded texture: " << SKY_TEX_PATH << '\n';
     sky_tex = SdlTextureUnqPtr(
-        safeSdlExec(SDL_CreateTextureFromSurface, "SDL_CreateTextureFromSurface",
+        safeSdlCall(SDL_CreateTextureFromSurface, "SDL_CreateTextureFromSurface",
                     SDL_RETURN_TEST(SDL_Texture*, (ret == nullptr)),
                     renderer.get(), sky_surface.get()),
         texture_deleter);
     // set to alpha blending (for fps glyphs)
-    safeSdlExec(SDL_SetTextureBlendMode, "SDL_SetTextureBlendMode",
+    safeSdlCall(SDL_SetTextureBlendMode, "SDL_SetTextureBlendMode",
                 SDL_RETURN_TEST(int, ret < 0),
                 sky_tex.get(), SDL_BLENDMODE_BLEND);
     // TBD: eventually change to map of texture keys representing floor/ceiling/walls
@@ -195,7 +195,7 @@ void SdlWindowMgr::initialize(const Settings& settings,
     // load textures (into surfaces for per-pixel access)
     for (uint8_t i { 1 }; i < 9; ++i) {
         wall_texs.emplace_back( SdlSurfaceUnqPtr(
-            safeSdlExec(IMG_Load, "IMG_Load",
+            safeSdlCall(IMG_Load, "IMG_Load",
                         SDL_RETURN_TEST(SDL_Surface*, (ret == nullptr)),
                         wall_tex_paths[i]),
             surface_deleter) );
@@ -213,7 +213,7 @@ void SdlWindowMgr::fitToWindow(const double map_proportion,
 
     // using format with alpha channel for blending of fps glyphs
     buffer = SdlSurfaceUnqPtr(
-        safeSdlExec(SDL_CreateRGBSurfaceWithFormat, "SDL_CreateRGBSurfaceWithFormat",
+        safeSdlCall(SDL_CreateRGBSurfaceWithFormat, "SDL_CreateRGBSurfaceWithFormat",
                     SDL_RETURN_TEST(SDL_Surface*, ret == nullptr),
                     0 /*flags*/, window_w, window_h,
                     32 /*depth (bits per pixel)*/, SDL_PIXELFORMAT_BGRA32),
@@ -223,14 +223,14 @@ void SdlWindowMgr::fitToWindow(const double map_proportion,
     //   SDL_LockSurface/SDL_UnlockSurface to improve performance
     assert(!SDL_MUSTLOCK(buffer.get()));
     buffer_tex = SdlTextureUnqPtr(
-        safeSdlExec(SDL_CreateTexture, "SDL_CreateTexture",
+        safeSdlCall(SDL_CreateTexture, "SDL_CreateTexture",
                     SDL_RETURN_TEST(SDL_Texture*, ret == nullptr),
                     renderer.get(), buffer->format->format,
                     SDL_TEXTUREACCESS_STREAMING /*flags*/,
                     window_w, window_h),
         texture_deleter);
     // set to alpha blending (for fps glyphs)
-    safeSdlExec(SDL_SetTextureBlendMode, "SDL_SetTextureBlendMode",
+    safeSdlCall(SDL_SetTextureBlendMode, "SDL_SetTextureBlendMode",
                 SDL_RETURN_TEST(int, ret < 0),
                 buffer_tex.get(), SDL_BLENDMODE_BLEND);
 

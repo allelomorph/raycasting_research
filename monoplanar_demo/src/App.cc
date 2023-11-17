@@ -1,7 +1,7 @@
 #include "App.hh"
-#include "safeCExec.hh"       // C_*
-#include "safeSdlExec.hh"     // SDL_RETURN_TEST
-#include "Xterm.hh"           // CtrlSeqs
+#include "safeLibcCall.hh"      // C_*
+#include "safeSdlCall.hh"       // SDL_RETURN_TEST
+#include "xterm_ctrl_seqs.hh"   // CtrlSeqs
 #include "LinuxKbdInputMgr.hh"
 #include "SdlKbdInputMgr.hh"
 
@@ -33,7 +33,7 @@ App::App(const char* efn, const std::string& mfn,
 
     // wall textures are loaded with IMG_Load even when in tty mode,
     //   with SDL subsystems needed to report errors, so init regardless
-    safeSdlExec(SDL_Init, "SDL_Init", SDL_RETURN_TEST(int, ret != 0),
+    safeSdlCall(SDL_Init, "SDL_Init", SDL_RETURN_TEST(int, ret != 0),
                 tty_io ? 0 : SDL_INIT_VIDEO);
 }
 
@@ -48,17 +48,17 @@ void App::initialize() {
     struct sigaction sa;
     // valgrind complains if struct is uninitialized
     // struct definition is implementation-dependent, so no brace initializer
-    // memset has no return or errno, so no safeCExec
+    // memset has no return or errno, so no safeLibcCall
     std::memset(&sa, 0, sizeof(struct sigaction));
     sa.sa_handler = sigint_sigterm_handler;
-    safeCExec(sigaction, "sigaction", C_RETURN_TEST(int, (ret == -1)),
+    safeLibcCall(sigaction, "sigaction", C_RETURN_TEST(int, (ret == -1)),
               SIGINT, &sa, nullptr);
-    safeCExec(sigaction, "sigaction", C_RETURN_TEST(int, (ret == -1)),
+    safeLibcCall(sigaction, "sigaction", C_RETURN_TEST(int, (ret == -1)),
               SIGTERM, &sa, nullptr);
     // sigwinch_handler only needed in tty mode, but registered in both modes
     std::memset(&sa, 0, sizeof(struct sigaction));
     sa.sa_handler = sigwinch_handler;
-    safeCExec(sigaction, "sigaction", C_RETURN_TEST(int, (ret == -1)),
+    safeLibcCall(sigaction, "sigaction", C_RETURN_TEST(int, (ret == -1)),
               SIGWINCH, &sa, nullptr);
 
     // parse map file to get maze and starting actor positions

@@ -1,5 +1,5 @@
-#ifndef SAFESDLEXEC_HH
-#define SAFESDLEXEC_HH
+#ifndef SAFESDLCALL_HH
+#define SAFESDLCALL_HH
 
 
 #include <SDL2/SDL.h>          // SDL_GetError
@@ -34,7 +34,7 @@
 // TBD: how to allow for throwing other exception types, eg bad_alloc?
 
 template<typename FuncPtrType, typename ReturnType, typename ...ParamTypes>
-ReturnType safeSdlExec(FuncPtrType func, const std::string& func_name,
+ReturnType safeSdlCall(FuncPtrType func, const std::string& func_name,
                        bool (*is_failure)(ReturnType),
                        ParamTypes ...params) {
     // TBD: this assert for every call may be too slow
@@ -58,4 +58,4 @@ ReturnType safeSdlExec(FuncPtrType func, const std::string& func_name,
     static_cast<bool (*)(ret_type ret)>([](ret_type ret){ return test; })
 
 
-#endif  // SAFESDLEXEC_HH
+#endif  // SAFESDLCALL_HH

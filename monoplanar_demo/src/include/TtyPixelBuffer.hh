@@ -1,7 +1,7 @@
 #ifndef TTYPIXELBUFFER_HH
 #define TTYPIXELBUFFER_HH
 
-#include "Xterm.hh"     //  Color::Data
+#include "xterm_ctrl_seqs.hh"     //  Color::Data
 
 #include <cstdint>
 

@@ -1,11 +1,11 @@
 #include "App.hh"
 #include "WindowMgr.hh"
 #include "SdlWindowMgr.hh"
-#include "Settings.hh"     // TtyDisplayMode
-#include "Xterm.hh"        // CtrlSeqs
+#include "Settings.hh"         // TtyDisplayMode
+#include "xterm_ctrl_seqs.hh"  // CtrlSeqs
 
-#include <getopt.h>        // option getopt_long optind
-#include <ctype.h>         // tolower
+#include <getopt.h>            // option getopt_long optind
+#include <cctype>              // tolower
 
 #include <iostream>
 #include <string>

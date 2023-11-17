@@ -15,7 +15,9 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 include(InSourceBuildGuard)
 
 # TBD do we need some form of extern/ for outside dependencies?
-# ??? why can we not expose SDL2 targets here the way errnoname ones are
-#   in the src/ list file?
 include(GetSDL2)
+include(GetsafeLibcCall)
+include(GetsafeSdlCall)
+include(Getxterm_ctrl_seqs)
+
 add_subdirectory(src bin)

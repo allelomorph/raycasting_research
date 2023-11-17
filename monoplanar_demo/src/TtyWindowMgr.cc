@@ -1,7 +1,7 @@
 #include "TtyWindowMgr.hh"
-#include "safeCExec.hh"               // C_*
-#include "safeSdlExec.hh"             // SDL_RETURN_TEST
-#include "Xterm.hh"                   // CtrlSeqs::
+#include "safeLibcCall.hh"               // C_*
+#include "safeSdlCall.hh"             // SDL_RETURN_TEST
+#include "xterm_ctrl_seqs.hh"         // CtrlSeqs::
 
 #include <SDL2/SDL_image.h>           // IMG_*
 
@@ -182,7 +182,7 @@ void TtyWindowMgr::renderPixelColumn(const uint16_t screen_x,
 TtyWindowMgr::TtyWindowMgr() {
     // SDL_Init in App()
     // image subsystem for texture loading
-    safeSdlExec(IMG_Init, "IMG_Init", SDL_RETURN_TEST(int, (ret == 0)),
+    safeSdlCall(IMG_Init, "IMG_Init", SDL_RETURN_TEST(int, (ret == 0)),
                 IMG_INIT_JPG);
 }
 
@@ -208,7 +208,7 @@ void TtyWindowMgr::initialize(const Settings& settings,
                               const uint16_t layout_h) {
     // Use of ttyname taken from coreutils tty, see:
     //  - https://github.com/coreutils/coreutils/blob/master/src/tty.c
-    tty_name = safeCExec(ttyname, "ttyname",
+    tty_name = safeLibcCall(ttyname, "ttyname",
                          C_RETURN_TEST(char *, (ret == nullptr)),
                          STDIN_FILENO);
 
@@ -220,7 +220,7 @@ void TtyWindowMgr::initialize(const Settings& settings,
     // load textures (into surfaces for per-pixel access)
     for (uint8_t i { 1 }; i < 9; ++i) {
         wall_texs.emplace_back( SdlSurfaceUnqPtr(
-            safeSdlExec(IMG_Load, "IMG_Load", SDL_RETURN_TEST(SDL_Surface*, (ret == nullptr)),
+            safeSdlCall(IMG_Load, "IMG_Load", SDL_RETURN_TEST(SDL_Surface*, (ret == nullptr)),
                         wall_tex_paths[i]),
             surface_deleter) );
         std::cout << "Loaded texture: " << wall_tex_paths[i] << '\n';
@@ -240,7 +240,7 @@ void TtyWindowMgr::fitToWindow(const double map_proportion,
     // use of TIOCGWINSZ taken from coreutils stty, see:
     //   - https://github.com/wertarbyte/coreutils/blob/master/src/stty.c#L1311
     struct winsize winsz;
-    safeCExec(ioctl, "ioctl", C_RETURN_TEST(int, (ret == -1)),
+    safeLibcCall(ioctl, "ioctl", C_RETURN_TEST(int, (ret == -1)),
               STDIN_FILENO, TIOCGWINSZ, &winsz);
     // replacing rather than resizing buffer due to stray map and hud chars not
     //   being overwritten when not in ascii mode

@@ -1,5 +1,5 @@
-#ifndef SAFECEXEC_HH
-#define SAFECEXEC_HH
+#ifndef SAFELIBCCALL_HH
+#define SAFELIBCCALL_HH
 
 
 // errnoname.c uses C99 designated initializers and must be compiled separately
@@ -18,7 +18,7 @@ extern "C" {
 // TBD: how to allow for throwing other exception types, eg bad_alloc?
 
 template<typename FuncPtrType, typename ReturnType, typename ...ParamTypes>
-ReturnType safeCExec(FuncPtrType func, const std::string& func_name,
+ReturnType safeLibcCall(FuncPtrType func, const std::string& func_name,
                      bool (*is_failure)(ReturnType, int), ParamTypes ...params) {
     errno = 0;
     ReturnType retval { func(params...) };
@@ -35,7 +35,7 @@ ReturnType safeCExec(FuncPtrType func, const std::string& func_name,
 }
 
 template<typename FuncPtrType, typename ...ParamTypes>
-void safeCExec(FuncPtrType func, const std::string& func_name,
+void safeLibcCall(FuncPtrType func, const std::string& func_name,
                bool (*is_failure)(int), ParamTypes ...params) {
     errno = 0;
     func(params...);
@@ -48,7 +48,7 @@ void safeCExec(FuncPtrType func, const std::string& func_name,
 }
 
 template<typename FuncPtrType, typename ...ParamTypes>
-void safeCExec(FuncPtrType func, const std::string& func_name,
+void safeLibcCall(FuncPtrType func, const std::string& func_name,
                ParamTypes ...params) {
     errno = 0;
     func(params...);
@@ -68,4 +68,4 @@ void safeCExec(FuncPtrType func, const std::string& func_name,
     static_cast<bool (*)(int err)>([](int err){ return test; })
 
 
-#endif  // SAFECEXEC_HH
+#endif  // SAFELIBCCALL_HH

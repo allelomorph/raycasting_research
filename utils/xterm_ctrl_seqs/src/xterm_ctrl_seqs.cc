@@ -1,4 +1,4 @@
-#include "Xterm.hh"
+#include "xterm_ctrl_seqs.hh"
 
 #include <cstdint>
 

@@ -25,7 +25,6 @@ if(NOT SDL2_FOUND AND
 endif()
 
 # Search for the SDL2_image include directory
-#unset(SDL2_IMAGE_INCLUDE_DIR CACHE)
 find_path(SDL2_IMAGE_INCLUDE_DIR
   SDL_image.h
   PATH_SUFFIXES
@@ -35,13 +34,18 @@ find_path(SDL2_IMAGE_INCLUDE_DIR
   DOC "Path to directory containing SDL2_image headers"
 )
 
+if (SDL2_IMAGE_INCLUDE_DIR)
+  # set SDL2_IMAGE_VERSION
+  include(SdlVersionFromHeader)
+  sdl_version_from_header(SDL_iamge.h)
+endif()
+
 # Search for the SDL2_image library
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
   set(VC_LIB_PATH_SUFFIX lib/x64)
 else()
   set(VC_LIB_PATH_SUFFIX lib/x86)
 endif()
-#unset(SDL2_IMAGE_LIBRARY CACHE)
 find_library(SDL2_IMAGE_LIBRARY
   SDL2_image
   PATH_SUFFIXES
@@ -50,10 +54,6 @@ find_library(SDL2_IMAGE_LIBRARY
   DOC "Path to directory containing SDL2_image library"
 )
 unset(VC_LIB_PATH_SUFFIX)
-
-# set SDL2_IMAGE_VERSION
-include(SDLVersionStringFromHeader)
-SDL_version_string_from_header(SDL2_IMAGE SDL_IMAGE SDL_image.h)
 
 set(SDL2_IMAGE_LIBRARIES ${SDL2_IMAGE_LIBRARY})
 set(SDL2_IMAGE_INCLUDE_DIRS ${SDL2_IMAGE_INCLUDE_DIR})

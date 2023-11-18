@@ -28,12 +28,18 @@ find_path(SDL2_INCLUDE_DIR
 )
 list(APPEND SDL2_INCLUDE_DIRS "${SDL2_INCLUDE_DIR}")
 
+if (SDL2_INCLUDE_DIR)
+  # set SDL2_VERSION
+  include(SdlVersionFromHeader)
+  sdl_version_from_header(SDL_version.h)
+endif()
+
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
   set(VC_LIB_PATH_SUFFIX lib/x64)
 else()
   set(VC_LIB_PATH_SUFFIX lib/x86)
 endif()
-#unset(SDL2_LIBRARY CACHE)
+
 find_library(SDL2_LIBRARY
   SDL2
   PATH_SUFFIXES
@@ -42,7 +48,6 @@ find_library(SDL2_LIBRARY
   DOC "Path to directory containing SDL2 libraries"
   )
 list(APPEND SDL2_LIBRARIES "${SDL2_LIBRARY}")
-#unset(SDL2MAIN_LIBRARY CACHE)
 find_library(SDL2MAIN_LIBRARY
   SDL2main
   PATH_SUFFIXES
@@ -51,11 +56,8 @@ find_library(SDL2MAIN_LIBRARY
   DOC "Path to directory containing SDL2main library"
   )
 list(APPEND SDL2_LIBRARIES "${SDL2MAIN_LIBRARY}")
-unset(VC_LIB_PATH_SUFFIX)
 
-# set SDL2_VERSION
-include(SDLVersionStringFromHeader)
-SDL_version_string_from_header(SDL2 SDL SDL_version.h)
+unset(VC_LIB_PATH_SUFFIX)
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(SDL2

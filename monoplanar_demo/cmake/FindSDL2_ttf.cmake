@@ -25,7 +25,6 @@ if(NOT SDL2_FOUND AND
 endif()
 
 # Search for the SDL2_ttf include directory
-#unset(SDL2_TTF_INCLUDE_DIR CACHE)
 find_path(SDL2_TTF_INCLUDE_DIR
   SDL_ttf.h
   PATH_SUFFIXES
@@ -35,13 +34,19 @@ find_path(SDL2_TTF_INCLUDE_DIR
   DOC "Path to directory containing SDL2_ttf headers"
 )
 
+if (SDL2_TTF_INCLUDE_DIR)
+  # set SDL2_TTF_VERSION
+  include(SdlVersionFromHeader)
+  sdl_version_from_header(SDL_ttf.h)
+endif()
+
 # Search for the SDL2_ttf library
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
   set(VC_LIB_PATH_SUFFIX lib/x64)
 else()
   set(VC_LIB_PATH_SUFFIX lib/x86)
 endif()
-#unset(SDL2_TTF_LIBRARY CACHE)
+
 find_library(SDL2_TTF_LIBRARY
   SDL2_ttf
   PATH_SUFFIXES
@@ -50,10 +55,6 @@ find_library(SDL2_TTF_LIBRARY
   DOC "Path to directory containing SDL2_ttf library"
 )
 unset(VC_LIB_PATH_SUFFIX)
-
-# set SDL2_TTF_VERSION
-include(SDLVersionStringFromHeader)
-SDL_version_string_from_header(SDL2_TTF SDL_TTF SDL_ttf.h)
 
 set(SDL2_TTF_LIBRARIES ${SDL2_TTF_LIBRARY})
 set(SDL2_TTF_INCLUDE_DIRS ${SDL2_TTF_INCLUDE_DIR})

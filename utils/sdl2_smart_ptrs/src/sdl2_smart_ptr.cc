@@ -55,7 +55,8 @@ auto make_unique(SDL_Window* wp) {
 }
 
 auto make_shared(SDL_Cursor* cp) {
-    return shared::Cursor{ cp, deleter::Cursor{} };
+    static deleter::Cursor dltr;
+    return shared::Cursor{ cp, dltr };
 }
 
 auto make_shared(SDL_cond* cvp) {

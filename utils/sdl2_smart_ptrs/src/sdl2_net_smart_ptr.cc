@@ -12,30 +12,33 @@ void UdpPacket::operator()(UDPpacket* upp) const { SDLNet_FreePacket(upp); }
 
 }  // namespace deleter
 
-auto make_unique(_SDLNet_SocketSet* ssp) {
-    return unique::SocketSet{ ssp, deleter::SocketSet{} };
+unique::SocketSet make_unique(_SDLNet_SocketSet* ssp) {
+    static const deleter::SocketSet dltr;
+    return unique::SocketSet{ ssp, dltr };
 }
 
-auto make_unique(_TCPsocket* tsp) {
-    return unique::TcpSocket{ tsp, deleter::TcpSocket{} };
+unique::TcpSocket make_unique(_TCPsocket* tsp) {
+    static const deleter::TcpSocket dltr;
+    return unique::TcpSocket{ tsp, dltr };
 }
 
-auto make_unique(UDPpacket* upp) {
-    return unique::UdpPacket{ upp, deleter::UdpPacket{} };
+unique::UdpPacket make_unique(UDPpacket* upp) {
+    static const deleter::UdpPacket dltr;
+    return unique::UdpPacket{ upp, dltr };
 }
 
-auto make_shared(_SDLNet_SocketSet* ssp) {
-    static deleter::SocketSet dltr;
+shared::SocketSet make_shared(_SDLNet_SocketSet* ssp) {
+    static const deleter::SocketSet dltr;
     return shared::SocketSet{ ssp, dltr };
 }
 
-auto make_shared(_TCPsocket* tsp) {
-    static deleter::TcpSocket dltr;
+shared::TcpSocket make_shared(_TCPsocket* tsp) {
+    static const deleter::TcpSocket dltr;
     return shared::TcpSocket{ tsp, dltr };
 }
 
-auto make_shared(UDPpacket* upp) {
-    static deleter::UdpPacket dltr;
+shared::UdpPacket make_shared(UDPpacket* upp) {
+    static const deleter::UdpPacket dltr;
     return shared::UdpPacket{ upp, dltr };
 }
 

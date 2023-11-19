@@ -86,23 +86,23 @@ using Window       = std::weak_ptr<SDL_Window>;
 
 }   // namespace weak
 
-auto make_unique(SDL_Cursor*);
-auto make_unique(SDL_cond*);
-auto make_unique(SDL_mutex*);
-auto make_unique(SDL_Renderer*);
-auto make_unique(SDL_sem*);
-auto make_unique(SDL_Surface*);
-auto make_unique(SDL_Texture*);
-auto make_unique(SDL_Window*);
+unique::Cursor    make_unique(SDL_Cursor*);
+unique::CondVar   make_unique(SDL_cond*);
+unique::Mutex     make_unique(SDL_mutex*);
+unique::Renderer  make_unique(SDL_Renderer*);
+unique::Semaphore make_unique(SDL_sem*);
+unique::Surface   make_unique(SDL_Surface*);
+unique::Texture   make_unique(SDL_Texture*);
+unique::Window    make_unique(SDL_Window*);
 
-auto make_shared(SDL_Cursor*);
-auto make_shared(SDL_cond*);
-auto make_shared(SDL_mutex*);
-auto make_shared(SDL_Renderer*);
-auto make_shared(SDL_sem*);
-auto make_shared(SDL_Surface*);
-auto make_shared(SDL_Texture*);
-auto make_shared(SDL_Window*);
+shared::Cursor    make_shared(SDL_Cursor*);
+shared::CondVar   make_shared(SDL_cond*);
+shared::Mutex     make_shared(SDL_mutex*);
+shared::Renderer  make_shared(SDL_Renderer*);
+shared::Semaphore make_shared(SDL_sem*);
+shared::Surface   make_shared(SDL_Surface*);
+shared::Texture   make_shared(SDL_Texture*);
+shared::Window    make_shared(SDL_Window*);
 
 }  // namespace sdl2_smart_ptr
 

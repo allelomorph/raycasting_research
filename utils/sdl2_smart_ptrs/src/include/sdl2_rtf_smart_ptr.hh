@@ -34,9 +34,9 @@ using RtfContext = std::weak_ptr<RTF_Context>;
 
 }  // namespace weak
 
-auto make_unique(RTF_Context*);
+unique::RtfContext make_unique(RTF_Context*);
 
-auto make_shared(RTF_Context*);
+shared::RtfContext make_shared(RTF_Context*);
 
 }  // namespace sdl2_smart_ptr
 

@@ -54,13 +54,13 @@ using UdpPacket = std::weak_ptr<UDPpacket>;
 
 }  // namespace weak
 
-auto make_unique(_SDLNet_SocketSet*);
-auto make_unique(_TCPsocket*);
-auto make_unique(UDPpacket*);
+unique::SocketSet make_unique(_SDLNet_SocketSet*);
+unique::TcpSocket make_unique(_TCPsocket*);
+unique::UdpPacket make_unique(UDPpacket*);
 
-auto make_shared(_SDLNet_SocketSet*);
-auto make_shared(_TCPsocket*);
-auto make_shared(UDPpacket*);
+shared::SocketSet make_shared(_SDLNet_SocketSet*);
+shared::TcpSocket make_shared(_TCPsocket*);
+shared::UdpPacket make_shared(UDPpacket*);
 
 }  // namespace sdl2_smart_ptr
 

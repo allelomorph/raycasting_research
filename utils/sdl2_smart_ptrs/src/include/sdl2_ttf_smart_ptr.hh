@@ -33,9 +33,9 @@ using TtfFont = std::weak_ptr<TTF_Font>;
 
 }  // namespace weak
 
-auto make_unique(TTF_Font*);
+unique::TtfFont make_unique(TTF_Font*);
 
-auto make_shared(TTF_Font*);
+shared::TtfFont make_shared(TTF_Font*);
 
 }  // namespace sdl2_smart_ptr
 

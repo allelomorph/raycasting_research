@@ -8,12 +8,13 @@ void TtfFont::operator()(TTF_Font* fp) const { TTF_CloseFont(fp); }
 
 }  // namespace deleter
 
-auto make_unique(TTF_Font* tfp) {
-    return unique::TtfFont{ tfp, deleter::TtfFont{} };
+unique::TtfFont make_unique(TTF_Font* tfp) {
+    static const deleter::TtfFont dltr;
+    return unique::TtfFont{ tfp, dltr };
 }
 
-auto make_shared(TTF_Font* tfp) {
-    static deleter::TtfFont dltr;
+shared::TtfFont make_shared(TTF_Font* tfp) {
+    static const deleter::TtfFont dltr;
     return shared::TtfFont{ tfp, dltr };
 }
 

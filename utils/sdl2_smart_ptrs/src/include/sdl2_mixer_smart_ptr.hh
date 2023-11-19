@@ -40,11 +40,11 @@ using MixMusic = std::weak_ptr<Mix_Music>;
 
 }  // namespace weak
 
-auto make_unique(Mix_Chunk*);
-auto make_unique(Mix_Music*);
+unique::MixChunk make_unique(Mix_Chunk*);
+unique::MixMusic make_unique(Mix_Music*);
 
-auto make_shared(Mix_Chunk*);
-auto make_shared(Mix_Music*);
+shared::MixChunk make_shared(Mix_Chunk*);
+shared::MixMusic make_shared(Mix_Music*);
 
 }  // namespace sdl2_smart_ptr
 

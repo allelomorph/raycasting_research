@@ -8,12 +8,13 @@ void RtfContext::operator()(RTF_Context* rcp) const { RTF_FreeContext(rcp); }
 
 }  // namespace deleter
 
-auto make_unique(RTF_Context* tfp) {
-    return unique::RtfContext{ tfp, deleter::RtfContext{} };
+unique::RtfContext make_unique(RTF_Context* tfp) {
+    static const deleter::RtfContext dltr;
+    return unique::RtfContext{ tfp, dltr };
 }
 
-auto make_shared(RTF_Context* tfp) {
-    static deleter::RtfContext dltr;
+shared::RtfContext make_shared(RTF_Context* tfp) {
+    static const deleter::RtfContext dltr;
     return shared::RtfContext{ tfp, dltr };
 }
 

@@ -22,75 +22,83 @@ void Window::operator()(SDL_Window* wp) const { SDL_DestroyWindow(wp); }
 
 }  // namespace deleter
 
-auto make_unique(SDL_Cursor* cp) {
-    return unique::Cursor{ cp, deleter::Cursor{} };
+unique::Cursor    make_unique(SDL_Cursor* cp) {
+    static const deleter::Cursor dltr;
+    return unique::Cursor{ cp, dltr };
 }
 
-auto make_unique(SDL_cond* cvp) {
-    return unique::CondVar{ cvp, deleter::CondVar{} };
+unique::CondVar   make_unique(SDL_cond* cvp) {
+    static const deleter::CondVar dltr;
+    return unique::CondVar{ cvp, dltr };
 }
 
-auto make_unique(SDL_mutex* mp) {
-    return unique::Mutex{ mp, deleter::Mutex{} };
+unique::Mutex     make_unique(SDL_mutex* mp) {
+    static const deleter::Mutex dltr;
+    return unique::Mutex{ mp, dltr };
 }
 
-auto make_unique(SDL_Renderer* rp) {
-    return unique::Renderer{ rp, deleter::Renderer{} };
+unique::Renderer  make_unique(SDL_Renderer* rp) {
+    static const deleter::Renderer dltr;
+    return unique::Renderer{ rp, dltr };
 }
 
-auto make_unique(SDL_sem* sp) {
-    return unique::Semaphore{ sp, deleter::Semaphore{} };
+unique::Semaphore make_unique(SDL_sem* sp) {
+    static const deleter::Semaphore dltr;
+    return unique::Semaphore{ sp, dltr };
 }
 
-auto make_unique(SDL_Surface* sp) {
-    return unique::Surface{ sp, deleter::Surface{} };
+unique::Surface   make_unique(SDL_Surface* sp) {
+    static const deleter::Surface dltr;
+    return unique::Surface{ sp, dltr };
 }
 
-auto make_unique(SDL_Texture* tp) {
-    return unique::Texture{ tp, deleter::Texture{} };
+unique::Texture   make_unique(SDL_Texture* tp) {
+    static const deleter::Texture dltr;
+    return unique::Texture{ tp, dltr };
 }
 
-auto make_unique(SDL_Window* wp) {
-    return unique::Window{ wp, deleter::Window{} };
+unique::Window    make_unique(SDL_Window* wp) {
+    static const deleter::Window dltr;
+    return unique::Window{ wp, dltr };
 }
 
-auto make_shared(SDL_Cursor* cp) {
-    static deleter::Cursor dltr;
+shared::Cursor    make_shared(SDL_Cursor* cp) {
+    static const deleter::Cursor dltr;
     return shared::Cursor{ cp, dltr };
 }
 
-auto make_shared(SDL_cond* cvp) {
-    static deleter::CondVar dltr;
+shared::CondVar   make_shared(SDL_cond* cvp) {
+    static const deleter::CondVar dltr;
     return shared::CondVar{ cvp, dltr };
 }
 
-auto make_shared(SDL_mutex* mp) {
-    static deleter::Mutex dltr;
+shared::Mutex     make_shared(SDL_mutex* mp) {
+    static const deleter::Mutex dltr;
     return shared::Mutex{ mp, dltr };
 }
 
-auto make_shared(SDL_Renderer* rp) {
-    static deleter::Renderer dltr;
+shared::Renderer  make_shared(SDL_Renderer* rp) {
+    static const deleter::Renderer dltr;
     return shared::Renderer{ rp, dltr };
 }
 
-auto make_shared(SDL_sem* sp) {
-    static deleter::Semaphore dltr;
+shared::Semaphore make_shared(SDL_sem* sp) {
+    static const deleter::Semaphore dltr;
     return shared::Semaphore{ sp, dltr };
 }
 
-auto make_shared(SDL_Surface* sp) {
-    static deleter::Surface dltr;
+shared::Surface   make_shared(SDL_Surface* sp) {
+    static const deleter::Surface dltr;
     return shared::Surface{ sp, dltr };
 }
 
-auto make_shared(SDL_Texture* tp) {
-    static deleter::Texture dltr;
+shared::Texture   make_shared(SDL_Texture* tp) {
+    static const deleter::Texture dltr;
     return shared::Texture{ tp, dltr };
 }
 
-auto make_shared(SDL_Window* wp) {
-    static deleter::Window dltr;
+shared::Window    make_shared(SDL_Window* wp) {
+    static const deleter::Window dltr;
     return shared::Window{ wp, dltr };
 }
 

@@ -1,5 +1,4 @@
 # stripped down from:
-#   /usr/share/cmake-3.16/Modules/FindSDL_ttf.cmake
 #   https://github.com/aminosbh/sdl2-cmake-modules/blob/f3223e2b723d7984ee722c27c949b42e5bef3204/FindSDL2.cmake
 
 # TBD add docs
@@ -58,6 +57,30 @@ find_library(SDL2MAIN_LIBRARY
 list(APPEND SDL2_LIBRARIES "${SDL2MAIN_LIBRARY}")
 
 unset(VC_LIB_PATH_SUFFIX)
+
+# Currently find_package_handle_standard_args (fphsa) is called for both SDL2
+#   and SDL2main, but since this module is run by calling find_package(SDL2),
+#   there are no SDL2main_FIND_* vars set. This can cause fphsa to ignore
+#   version constraints on SDL2main that were meant for both it and SDL2.
+# Relevant list of variables set by find_package from:
+#   https://cmake.org/cmake/help/v3.16/command/find_package.html#package-file-interface-variables
+# Only REQUIRED, QUIET, and VERSION (not COMPONENTS) find variables handled by
+#   find_package_handle_standard_args, see:
+#   https://cmake.org/cmake/help/v3.16/module/FindPackageHandleStandardArgs.html#command:find_package_handle_standard_args
+foreach(find_var_suffix
+    "_FIND_REQUIRED"
+    "_FIND_QUIETLY"
+    "_FIND_VERSION"
+    "_FIND_VERSION_MAJOR"
+    "_FIND_VERSION_MINOR"
+    "_FIND_VERSION_PATCH"
+    "_FIND_VERSION_TWEAK"
+    "_FIND_VERSION_COUNT"
+    "_FIND_VERSION_EXACT")
+  if (DEFINED SDL2${find_var_suffix})  # ${CMAKE_FIND_PACKAGE_NAME} == "SDL2"
+    set(SDL2main${find_var_suffix} "${SDL2${find_var_suffix}}")
+  endif()
+endforeach()
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(SDL2

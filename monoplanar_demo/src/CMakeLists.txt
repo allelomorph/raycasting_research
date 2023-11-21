@@ -31,12 +31,12 @@ target_include_directories(${target} PRIVATE
   )
 endforeach()
 
-#[[
+
 target_precompile_headers(App
   PUBLIC
-    "App.hh"
-    "LinuxKbdInputMgr.hh"
-    "SdlKbdInputMgr.hh"
+    [["App.hh"]]
+    [["LinuxKbdInputMgr.hh"]]
+    [["SdlKbdInputMgr.hh"]]
   PRIVATE
     <SDL2/SDL.h>
     <SDL2/SDL_events.h>
@@ -46,26 +46,26 @@ target_precompile_headers(App
     )
 target_precompile_headers(DdaRaycastEngine
   PUBLIC
-    "DdaRaycastEngine.hh"
+    [["DdaRaycastEngine.hh"]]
   PRIVATE
     <cstdint>
     <cmath>
     )
 target_precompile_headers(FpsCalc
   PUBLIC
-    "FpsCalc.hh"
+    [["FpsCalc.hh"]]
   PRIVATE
     <ctime>
     <chrono>
   )
 target_precompile_headers(KbdInputMgr
   PUBLIC
-    "KbdInputMgr.hh"
+    [["KbdInputMgr.hh"]]
   )
 target_precompile_headers(Layout
   PUBLIC
-    "Layout.hh"
-    "Vector2d.hh"
+    [["Layout.hh"]]
+    [["Vector2d.hh"]]
   PRIVATE
     <iostream>
     <algorithm>
@@ -75,7 +75,7 @@ target_precompile_headers(Layout
   )
 target_precompile_headers(LinuxKbdInputMgr
   PUBLIC
-    "LinuxKbdInputMgr.hh"
+    [["LinuxKbdInputMgr.hh"]]
   PRIVATE
     <sys/types.h>
     <sys/stat.h>
@@ -95,7 +95,7 @@ target_precompile_headers(LinuxKbdInputMgr
   )
 target_precompile_headers(SdlWindowMgr
   PUBLIC
-    "SdlWindowMgr.hh"
+    [["SdlWindowMgr.hh"]]
   PRIVATE
     <SDL2/SDL_image.h>
     <SDL2/SDL_ttf.h>
@@ -106,20 +106,20 @@ target_precompile_headers(SdlWindowMgr
   )
 target_precompile_headers(SdlKbdInputMgr
   PUBLIC
-    "SdlKbdInputMgr.hh"
+    [["SdlKbdInputMgr.hh"]]
   PRIVATE
     <SDL2/SDL_keycode.h>
   )
 target_precompile_headers(TtyPixelBuffer
   PUBLIC
-    "TtyPixelBuffer.hh"
+    [["TtyPixelBuffer.hh"]]
   PRIVATE
     <cassert>      # reuse from SdlWindowMgr?
     <cstdint>
     )
 target_precompile_headers(TtyWindowMgr
   PUBLIC
-    "TtyWindowMgr.hh"
+    [["TtyWindowMgr.hh"]]
   PRIVATE
     <SDL2/SDL_image.h>
     <termios.h>
@@ -137,23 +137,23 @@ target_precompile_headers(TtyWindowMgr
   )
 target_precompile_headers(Vector2d
   PUBLIC
-    "Vector2d.hh"
+    [["Vector2d.hh"]]
   PRIVATE
     <cmath>      # reuse from DdaRaycastEngine?
   )
 target_precompile_headers(main
   PUBLIC
-    "App.hh"
-    "WindowMgr.hh"
-    "SdlWindowMgr.hh"
-    "Settings.hh"
+    [["App.hh"]]
+    [["WindowMgr.hh"]]
+    [["SdlWindowMgr.hh"]]
+    [["Settings.hh"]]
   PRIVATE
     <getopt.h>
     <cctype>       # reuse from LinuxKbdInputMgr?
     <iostream>     # reuse from LinuxKbdInputMgr?
     <string>       # reuse from LinuxKbdInputMgr?
   )
-]]
+
 
 target_link_libraries(App
   safeLibcCall
@@ -197,11 +197,13 @@ target_link_libraries(main
   xterm_ctrl_seqs_shared
   )
 
+#[[
 set(MPDEMO_HEADER_ONLY_SRC
   KeyState.hh
   Settings.hh
   WindowMgr.hh
   )
+]]
 
 add_executable(monoplanar_demo)
 target_link_libraries(monoplanar_demo

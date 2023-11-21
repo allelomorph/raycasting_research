@@ -37,7 +37,7 @@ find_path(SDL2_IMAGE_INCLUDE_DIR
 if (SDL2_IMAGE_INCLUDE_DIR)
   # set SDL2_IMAGE_VERSION
   include(SdlVersionFromHeader)
-  sdl_version_from_header(SDL_iamge.h)
+  sdl_version_from_header(SDL_image.h)
 endif()
 
 # Search for the SDL2_image library

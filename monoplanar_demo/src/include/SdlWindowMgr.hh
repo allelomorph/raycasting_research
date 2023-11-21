@@ -1,11 +1,12 @@
 #ifndef SDLWINDOWMGR_HH
 #define SDLWINDOWMGR_HH
 
-#include "WindowMgr.hh"
-#include "sdl_unique_ptrs.hh"   // SdlDeleter::* Sdl*UnqPtr
-#include "Settings.hh"
-#include "DdaRaycastEngine.hh"  // FovRay
+#include "DdaRaycastEngine.hh"    // FovRay
 #include "KbdInputMgr.hh"
+#include "Settings.hh"
+#include "WindowMgr.hh"           // sdl2_unq
+
+#include "sdl2_ttf_smart_ptr.hh"  // sdl2_smart_ptr::unique::TtfFont
 
 #include <SDL2/SDL_rect.h>
 #include <SDL2/SDL_surface.h>
@@ -24,27 +25,19 @@ private:
     static constexpr char SKY_TEX_PATH[] { "images/Vue1.jpg" };
     static constexpr char FONT_PATH[] { "fonts/Courier New.ttf" };
 
-    // functors for SDL struct pointer deallocations
-    //
-    const SdlDeleter::Window   window_deleter {};
-    const SdlDeleter::Renderer renderer_deleter {};
-    const SdlDeleter::Texture  texture_deleter {};
-    const SdlDeleter::TtfFont  ttf_font_deleter {};
-    // surface_deleter in parent class
-
     // Best way in testing to prevent leaks and read errors with the freeing of
     //   a SDL window-renderer-texture association was to free in the reverse
     //   order of allocation (texture-renderer-window,) which should be the
     //   automatic behavior of member unique_ptr dtors (and thus deleters)
     //   being called in reverse order of declaration.
     // X11 window
-    SdlWindowUnqPtr                window;
+    sdl2_unq::Window   window;
     // window renderer
-    SdlRendererUnqPtr              renderer;
+    sdl2_unq::Renderer renderer;
     // full window texture created from buffer, to render as video frame
-    SdlTextureUnqPtr               buffer_tex;
+    sdl2_unq::Texture  buffer_tex;
     // main surface that is drawn to by game engine
-    SdlSurfaceUnqPtr               buffer;
+    sdl2_unq::Surface  buffer;
 
     uint16_t window_w;
     uint16_t window_h;
@@ -52,12 +45,12 @@ private:
     // element textures
     //
     // sky plane (maze background when not texturing ceiling and floor)
-    SdlTextureUnqPtr               sky_tex;
+    sdl2_unq::Texture               sky_tex;
     // wall textures (SDL_Surface instead of SDL_Texture for per-pixel access)
-    std::vector<SdlSurfaceUnqPtr>  wall_texs;
+    std::vector<sdl2_unq::Surface>  wall_texs;
     // HUD chars
     std::unordered_map<
-        uint8_t, SdlTextureUnqPtr> font_cache;
+        uint8_t, sdl2_unq::Texture> font_cache;
 
     // minimap rendering
     //

@@ -13,7 +13,6 @@ set(MPDEMO_OBJ
   TtyWindowMgr
   Vector2d
   main
-  sdl_unique_ptrs
   )
 
 include(SetStrictCompileOptions)
@@ -22,7 +21,7 @@ add_library(${target} OBJECT
   "${target}.cc"
   )
 set_target_properties(${target} PROPERTIES
-  CXX_STANDARD 11
+  CXX_STANDARD 17
   CXX_STANDARD_REQUIRED ON
   CXX_EXTENSIONS OFF
   )
@@ -118,7 +117,6 @@ target_precompile_headers(TtyPixelBuffer
     <cassert>      # reuse from SdlWindowMgr?
     <cstdint>
     )
-# TPB xterm_ctrl_seqs
 target_precompile_headers(TtyWindowMgr
   PUBLIC
     "TtyWindowMgr.hh"
@@ -155,24 +153,12 @@ target_precompile_headers(main
     <iostream>     # reuse from LinuxKbdInputMgr?
     <string>       # reuse from LinuxKbdInputMgr?
   )
-target_precompile_headers(sdl_unique_ptrs
-  PUBLIC
-    "sdl_unique_ptrs.hh"
-  )
-]]
-
-#[[
-SDL2::SDL2
-SDL2_image::SDL2_image
-SDL2_ttf::SDL2_ttf
-xterm_ctrl_seqs_shared
-safeSdlCall
-safeLibcCall
 ]]
 
 target_link_libraries(App
   safeLibcCall
   safeSdlCall
+  sdl2_smart_ptrs_shared  # WindowMgr.hh
   xterm_ctrl_seqs_shared
   SDL2::SDL2
   )
@@ -188,6 +174,7 @@ target_link_libraries(LinuxKbdInputMgr
   )
 target_link_libraries(SdlWindowMgr
   safeSdlCall
+  sdl2_smart_ptrs_shared  # WindowMgr.hh
   SDL2_image::SDL2_image
   SDL2_ttf::SDL2_ttf
   )
@@ -200,17 +187,14 @@ target_link_libraries(TtyPixelBuffer
 target_link_libraries(TtyWindowMgr
   safeSdlCall
   safeLibcCall
+  sdl2_smart_ptrs_shared  # WindowMgr.hh
   xterm_ctrl_seqs_shared
   SDL2::SDL2   # TtyWindowMgr.hh
   SDL2_image::SDL2_image
   )
-#target_link_libraries(Vector2d cmath)
 target_link_libraries(main
+  sdl2_smart_ptrs_shared  # WindowMgr.hh
   xterm_ctrl_seqs_shared
-  )
-target_link_libraries(sdl_unique_ptrs
-  SDL2::SDL2
-  SDL2_ttf::SDL2_ttf
   )
 
 set(MPDEMO_HEADER_ONLY_SRC
@@ -228,6 +212,7 @@ target_link_libraries(monoplanar_demo
   SDL2_ttf::SDL2_ttf
   safeLibcCall
   safeSdlCall
+  sdl2_smart_ptrs_shared
   xterm_ctrl_seqs_shared
   ]]
   )
@@ -241,9 +226,7 @@ target_link_libraries(monoplanar_demo
 ####
 
 message("testing targets in src")
-
 include(PrintTargetProperties)
-
 foreach(target
     ${MPDEMO_OBJ}
     SDL2
@@ -259,6 +242,9 @@ foreach(target
     errnoname_shared
     safeLibcCall
     safeSdlCall
+    sdl2_smart_ptrs_obj
+    sdl2_smart_ptrs_static
+    sdl2_smart_ptrs_shared
     xterm_ctrl_seqs_obj
     xterm_ctrl_seqs_static
     xterm_ctrl_seqs_shared

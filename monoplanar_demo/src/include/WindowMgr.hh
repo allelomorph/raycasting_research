@@ -1,10 +1,11 @@
 #ifndef WINDOWMGR_HH
 #define WINDOWMGR_HH
 
-#include "sdl_unique_ptrs.hh"   // SdlDeleter::* Sdl*UnqPtr
-#include "Settings.hh"
 #include "DdaRaycastEngine.hh"  // FovRay
 #include "KbdInputMgr.hh"
+#include "Settings.hh"
+
+#include "sdl2_smart_ptr.hh"   // sdl2_smart_ptr::unique::
 
 #include <cstdint>
 
@@ -12,12 +13,12 @@
 #include <array>
 
 
+namespace sdl2_unq = sdl2_smart_ptr::unique;
+
 class WindowMgr {
 protected:
-    const SdlDeleter::Surface surface_deleter {};
-
     // wall textures (SDL_Surface instead of SDL_Texture for per-pixel access)
-    std::vector<SdlSurfaceUnqPtr> wall_texs;
+    std::vector<sdl2_unq::Surface> wall_texs;
 
     // ordered so that indices match texture indices in wall_texs
     static constexpr std::array<const char*, 10> wall_tex_paths {

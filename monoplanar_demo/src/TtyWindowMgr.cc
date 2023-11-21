@@ -216,13 +216,14 @@ void TtyWindowMgr::initialize(const Settings& settings,
 
     // TBD: eventually change to map of texture keys representing floor/ceiling/walls
     // dummmy texture at index 0, as map tile 0 represents non-wall tile
-    wall_texs.emplace_back(SdlSurfaceUnqPtr(nullptr, surface_deleter));
+    wall_texs.emplace_back(/*sdl2_unq::Surface{}*/);
     // load textures (into surfaces for per-pixel access)
     for (uint8_t i { 1 }; i < 9; ++i) {
-        wall_texs.emplace_back( SdlSurfaceUnqPtr(
-            safeSdlCall(IMG_Load, "IMG_Load", SDL_RETURN_TEST(SDL_Surface*, (ret == nullptr)),
-                        wall_tex_paths[i]),
-            surface_deleter) );
+        wall_texs.emplace_back(
+            sdl2_smart_ptr::make_unique(
+                safeSdlCall(IMG_Load, "IMG_Load",
+                            SDL_RETURN_TEST(SDL_Surface*, (ret == nullptr)),
+                            wall_tex_paths[i]) ) );
         std::cout << "Loaded texture: " << wall_tex_paths[i] << '\n';
     }
 

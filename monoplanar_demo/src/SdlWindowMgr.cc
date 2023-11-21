@@ -1,24 +1,22 @@
 #include "SdlWindowMgr.hh"
-#include "safeSdlCall.hh"      // SDL_RETURN_TEST
-#include "sdl_unique_ptrs.hh"  // *UnqPtr
+#include "safeSdlCall.hh"         // SDL_RETURN_TEST
 
-#include <SDL2/SDL_image.h>    // IMG_*
-#include <SDL2/SDL_ttf.h>      // TTF_*
+#include <SDL2/SDL_image.h>       // IMG_*
+#include <SDL2/SDL_ttf.h>         // TTF_*
 
 #include <string>
-#include <algorithm>           // min
+#include <algorithm>              // min
 #include <iostream>
 
 #include <cassert>
 
-
 void SdlWindowMgr::makeGlyphs(const char* font_filename) {
     // reference for font size ratio is 16pt on 480p window, or 1/30 window_h
-    SdlTtfFontUnqPtr font (
-        safeSdlCall(TTF_OpenFont, "TTF_OpenFont",
-                    SDL_RETURN_TEST(TTF_Font*, ret == nullptr),
-                    font_filename, window_h / 30 /*ptsize*/),
-        ttf_font_deleter);
+    sdl2_unq::TtfFont font {
+        sdl2_smart_ptr::make_unique(
+            safeSdlCall(TTF_OpenFont, "TTF_OpenFont",
+                        SDL_RETURN_TEST(TTF_Font*, ret == nullptr),
+                        font_filename, window_h / 30 /*ptsize*/) ) };
     SDL_Color fg { 0xff, 0xff, 0xff, 0xff };  // text foreground color (opaque white)
     TTF_Font* _font { font.get() };
     SDL_Renderer* _renderer { renderer.get() };
@@ -27,16 +25,15 @@ void SdlWindowMgr::makeGlyphs(const char* font_filename) {
     //   and SdlTextureUnqPtr dtors called on reassignment)
     // fill font cache with set of all printable ascii chars
     for (char c { ' ' }; c <= '~'; ++c) {
-        SdlSurfaceUnqPtr glyph_surface (
-            safeSdlCall(TTF_RenderGlyph_Blended, "TTF_RenderGlyph_Blended",
-                        SDL_RETURN_TEST(SDL_Surface*, ret == nullptr),
-                        _font, c, fg),
-            surface_deleter);
-        font_cache[c] = SdlTextureUnqPtr (
+        sdl2_unq::Surface glyph_surface {
+            sdl2_smart_ptr::make_unique(
+                safeSdlCall(TTF_RenderGlyph_Blended, "TTF_RenderGlyph_Blended",
+                            SDL_RETURN_TEST(SDL_Surface*, ret == nullptr),
+                            _font, c, fg) ) };
+        font_cache[c] = sdl2_smart_ptr::make_unique(
             safeSdlCall(SDL_CreateTextureFromSurface, "SDL_CreateTextureFromSurface",
                         SDL_RETURN_TEST(SDL_Texture*, ret == nullptr),
-                        _renderer, glyph_surface.get()),
-            texture_deleter);
+                        _renderer, glyph_surface.get()) );
     }
 }
 
@@ -149,24 +146,22 @@ void SdlWindowMgr::initialize(const Settings& settings,
     //
     // init window and window buffer
     //
-    window = SdlWindowUnqPtr(
+    window = sdl2_smart_ptr::make_unique(
         safeSdlCall(SDL_CreateWindow, "SDL_CreateWindow",
                     SDL_RETURN_TEST(SDL_Window*, ret == nullptr),
                     "monoplanar raycast demo" /*name*/,
                     SDL_WINDOWPOS_CENTERED /*x*/, SDL_WINDOWPOS_CENTERED /*y*/,
                     WINDOW_WIDTH, WINDOW_HEIGHT,
-                    SDL_WINDOW_RESIZABLE /*flags*/),
-        window_deleter);
+                    SDL_WINDOW_RESIZABLE /*flags*/) );
 
     // TBD: can we set the renderer blendmode once instead of individual texture
     //   blendmodes? SDL_SetRenderDrawBlendMode(renderer.get(), SDL_BLENDMODE_BLEND)
     //   ( == 0 on success)
-    renderer = SdlRendererUnqPtr(
+    renderer = sdl2_smart_ptr::make_unique(
         safeSdlCall(SDL_CreateRenderer, "SDL_CreateRenderer",
                     SDL_RETURN_TEST(SDL_Renderer*, ret == nullptr),
                     window.get(), -1 /*driver index (first to support flags)*/,
-                    SDL_RENDERER_ACCELERATED /*flags*/),
-        renderer_deleter);
+                    SDL_RENDERER_ACCELERATED /*flags*/) );
 
     // also populates font cache textures
     fitToWindow(settings.map_proportion, layout_h);
@@ -174,31 +169,29 @@ void SdlWindowMgr::initialize(const Settings& settings,
     //
     // init textures other than font cache
     //
-    SdlSurfaceUnqPtr sky_surface (
-        safeSdlCall(IMG_Load, "IMG_Load",
-                    SDL_RETURN_TEST(SDL_Surface*, (ret == nullptr)),
-                    SKY_TEX_PATH),
-        surface_deleter);
+    sdl2_unq::Surface sky_surface { sdl2_smart_ptr::make_unique(
+            safeSdlCall(IMG_Load, "IMG_Load",
+                        SDL_RETURN_TEST(SDL_Surface*, (ret == nullptr)),
+                        SKY_TEX_PATH) ) };
     std::cout << "Loaded texture: " << SKY_TEX_PATH << '\n';
-    sky_tex = SdlTextureUnqPtr(
+    sky_tex = sdl2_smart_ptr::make_unique(
         safeSdlCall(SDL_CreateTextureFromSurface, "SDL_CreateTextureFromSurface",
                     SDL_RETURN_TEST(SDL_Texture*, (ret == nullptr)),
-                    renderer.get(), sky_surface.get()),
-        texture_deleter);
+                    renderer.get(), sky_surface.get()) );
     // set to alpha blending (for fps glyphs)
     safeSdlCall(SDL_SetTextureBlendMode, "SDL_SetTextureBlendMode",
                 SDL_RETURN_TEST(int, ret < 0),
                 sky_tex.get(), SDL_BLENDMODE_BLEND);
     // TBD: eventually change to map of texture keys representing floor/ceiling/walls
     // dummmy texture at index 0, as map tile 0 represents non-wall tile
-    wall_texs.emplace_back(SdlSurfaceUnqPtr(nullptr, surface_deleter));
+    wall_texs.emplace_back(/*sdl2_unq::Surface{}*/);
     // load textures (into surfaces for per-pixel access)
     for (uint8_t i { 1 }; i < 9; ++i) {
-        wall_texs.emplace_back( SdlSurfaceUnqPtr(
-            safeSdlCall(IMG_Load, "IMG_Load",
-                        SDL_RETURN_TEST(SDL_Surface*, (ret == nullptr)),
-                        wall_tex_paths[i]),
-            surface_deleter) );
+        wall_texs.emplace_back(
+            sdl2_smart_ptr::make_unique(
+                safeSdlCall(IMG_Load, "IMG_Load",
+                            SDL_RETURN_TEST(SDL_Surface*, (ret == nullptr)),
+                            wall_tex_paths[i]) ) );
         std::cout << "Loaded texture: " << wall_tex_paths[i] << '\n';
     }
 }
@@ -212,23 +205,21 @@ void SdlWindowMgr::fitToWindow(const double map_proportion,
     window_h = h;
 
     // using format with alpha channel for blending of fps glyphs
-    buffer = SdlSurfaceUnqPtr(
+    buffer = sdl2_smart_ptr::make_unique(
         safeSdlCall(SDL_CreateRGBSurfaceWithFormat, "SDL_CreateRGBSurfaceWithFormat",
                     SDL_RETURN_TEST(SDL_Surface*, ret == nullptr),
                     0 /*flags*/, window_w, window_h,
-                    32 /*depth (bits per pixel)*/, SDL_PIXELFORMAT_BGRA32),
-        surface_deleter);
+                    32 /*depth (bits per pixel)*/, SDL_PIXELFORMAT_BGRA32) );
     // Even if pixel setting is multithreaded, no two threads should be
     //   accessing the same pixel column at once, so we can rule out use of
     //   SDL_LockSurface/SDL_UnlockSurface to improve performance
     assert(!SDL_MUSTLOCK(buffer.get()));
-    buffer_tex = SdlTextureUnqPtr(
+    buffer_tex = sdl2_smart_ptr::make_unique(
         safeSdlCall(SDL_CreateTexture, "SDL_CreateTexture",
                     SDL_RETURN_TEST(SDL_Texture*, ret == nullptr),
                     renderer.get(), buffer->format->format,
                     SDL_TEXTUREACCESS_STREAMING /*flags*/,
-                    window_w, window_h),
-        texture_deleter);
+                    window_w, window_h) );
     // set to alpha blending (for fps glyphs)
     safeSdlCall(SDL_SetTextureBlendMode, "SDL_SetTextureBlendMode",
                 SDL_RETURN_TEST(int, ret < 0),
@@ -305,10 +296,10 @@ void SdlWindowMgr::renderMap(const DdaRaycastEngine& raycast_engine) {
 
 
 void SdlWindowMgr::renderHud(const double pt_frame_duration_mvg_avg,
-                              const double rt_frame_duration_mvg_avg,
-                              const Settings& settings,
-                              const DdaRaycastEngine& raycast_engine,
-                              const KbdInputMgr* kbd_input_mgr) {
+                             const double rt_frame_duration_mvg_avg,
+                             const Settings& settings,
+                             const DdaRaycastEngine& raycast_engine,
+                             const KbdInputMgr* kbd_input_mgr) {
     char line[50] { '\0' };
     SDL_Rect glyph_rect { 0, 0, 0, 0 };
     // font "Courier New.ttf" is monospaced, so should have consistent glyph

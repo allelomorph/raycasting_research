@@ -18,10 +18,6 @@ function(sdl_version_from_header
   elseif(header_file STREQUAL "SDL_ttf.h")
     string(APPEND var_prefix   "_TTF")
     string(APPEND macro_prefix "_TTF")
-  elseif(NOT header_file STREQUAL "SDL_version.h")
-    message(WARNING "${header_file} not a relevant SDL2 header, could not \
-resolve version string")
-    return()
   endif()
 
   if(NOT ${var_prefix}_INCLUDE_DIR)
@@ -60,7 +56,7 @@ could not resolve ${var_prefix}_VERSION")
   #   https://cmake.org/cmake/help/v3.16/command/find_package.html#version-selection
   set(${var_prefix}_VERSION
     "${${var_prefix}_VERSION_MAJOR}.${${var_prefix}_VERSION_MINOR}.${${var_prefix}_VERSION_PATCH}")
-  message(STATUS "${var_prefix}_VERSION derived from ${header_file} as ${${var_prefix}_VERSION}")
+  message(STATUS "${var_prefix}_VERSION derived from ${${var_prefix}_INCLUDE_DIR}/${header_file} as ${${var_prefix}_VERSION}")
   set(${var_prefix}_VERSION "${${var_prefix}_VERSION}" PARENT_SCOPE)
 
 endfunction()

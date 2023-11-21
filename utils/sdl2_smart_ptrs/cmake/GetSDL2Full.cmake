@@ -34,21 +34,40 @@ set(FC_OPTIONS
   )
 fetch_if_not_found(SDL2 "${FP_OPTIONS}" "${FC_OPTIONS}")
 
-# Relevant SDL2_image releases:
-# - release matching Ubuntu 20.04 LTS and Ubuntu 22.04 LTS packages:
-#   2.0.5 (not listed on github, commit hash unknown)
-# - earliest listed release:
-#   2.0.8 e9fc66a038304be0b892b83c16d6dcf5ee36f388
-# - current release at last script update, requires SDL 2.0.9)
-#   2.6.3 d3c6d5963dbe438bcae0e2b6f3d7cfea23d02829
+# SDL_image not needed, as it only allocates SDL_Surface(s)
+
+# Relevant SDL2_mixer releases:
+# - release matching Ubuntu 20.04 LTS and 22.04 LTS packages: (no
+#     CMakeLists.txt, required SDL2 version unknown)
+#   2.0.4 da75a58c19de9fedea62724a5f7770cbbe39adf9
+# - earliest stable release to use CMakeLists.txt: (requires SDL2 2.0.9)
+#   2.6.0 738611693dc324001cc00f5b800e3d18fb42cb4e
+# - current release at last script update: (requires SDL2 2.0.9)
+#   2.6.3 6103316427a8479e5027e41ab9948bebfc1c3c19
 set(FP_OPTIONS
-  2.0.5
+  2.0.4
   )
 set(FC_OPTIONS
-  GIT_REPOSITORY https://github.com/libsdl-org/SDL_image.git
-  GIT_TAG        d3c6d5963dbe438bcae0e2b6f3d7cfea23d02829 # 2.6.3
+  GIT_REPOSITORY https://github.com/libsdl-org/SDL_mixer.git
+  GIT_TAG        6103316427a8479e5027e41ab9948bebfc1c3c19 # 2.6.3
   )
-fetch_if_not_found(SDL2_image "${FP_OPTIONS}" "${FC_OPTIONS}")
+fetch_if_not_found(SDL2_mixer "${FP_OPTIONS}" "${FC_OPTIONS}")
+
+# Relevant SDL2_net releases:
+# - release matching Ubuntu 20.04 LTS and 22.04 LTS packages: (no
+#     CMakeLists.txt, required SDL2 version unknown)
+#   2.0.1 6e513e390d18ad7950d9082863bfe33a0c62fd71
+# - earliest stable release to use CMakeLists.txt and current at last script
+#     update: (requires SDL2 2.0.4)
+#   2.2.0 669e75b84632e2c6cc5c65974ec9e28052cb7a4e
+set(FP_OPTIONS
+  2.0.1
+  )
+set(FC_OPTIONS
+  GIT_REPOSITORY https://github.com/libsdl-org/SDL_net.git
+  GIT_TAG        669e75b84632e2c6cc5c65974ec9e28052cb7a4e # 2.2.0
+  )
+fetch_if_not_found(SDL2_net "${FP_OPTIONS}" "${FC_OPTIONS}")
 
 # Relevant SDL2_ttf releases:
 # - release matching Ubuntu 20.04 LTS package:
@@ -65,3 +84,15 @@ set(FC_OPTIONS
   GIT_TAG        89d1692fd8fe91a679bb943d377bfbd709b52c23 # 2.20.2
   )
 fetch_if_not_found(SDL2_ttf "${FP_OPTIONS}" "${FC_OPTIONS}")
+
+# Relevant SDL2_rtf releases:
+# - !!! Does not appear as Ubuntu 20.04 LTS package
+# - !!! Does not appear as Ubuntu 22.04 LTS package
+# - current v2 release at last script update: (requires SDL2 2.0.16
+#     due to use of SDL_islower (2.0.12+) and SDL_isalpha (2.0.16+))
+#   2.0.0 db0e4676d6f9f6a271747ae21f997c3743cd53e1
+set(FC_OPTIONS
+  GIT_REPOSITORY https://github.com/libsdl-org/SDL_rtf.git
+  GIT_TAG        db0e4676d6f9f6a271747ae21f997c3743cd53e1 # 2.0.0
+  )
+fetch_if_not_found(SDL2_rtf "" "${FC_OPTIONS}")

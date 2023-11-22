@@ -1,6 +1,6 @@
 #include "TtyWindowMgr.hh"
 #include "safeLibcCall.hh"            // Libc*
-#include "safeSdlCall.hh"             // SDL_RETURN_TEST
+#include "safeSdlCall.hh"             // Sdl8
 #include "xterm_ctrl_seqs.hh"         // CtrlSeqs::
 
 #include <SDL2/SDL_image.h>           // IMG_*
@@ -182,7 +182,8 @@ void TtyWindowMgr::renderPixelColumn(const uint16_t screen_x,
 TtyWindowMgr::TtyWindowMgr() {
     // SDL_Init in App()
     // image subsystem for texture loading
-    safeSdlCall(IMG_Init, "IMG_Init", SDL_RETURN_TEST(int, (ret == 0)),
+    safeSdlCall(IMG_Init, "IMG_Init",
+                SdlRetTest<int>{ [](const int ret){ return (ret == 0); } },
                 IMG_INIT_JPG);
 }
 
@@ -223,7 +224,8 @@ void TtyWindowMgr::initialize(const Settings& settings,
         wall_texs.emplace_back(
             sdl2_smart_ptr::make_unique(
                 safeSdlCall(IMG_Load, "IMG_Load",
-                            SDL_RETURN_TEST(SDL_Surface*, (ret == nullptr)),
+                            SdlRetTest<SDL_Surface*>{
+                                [](SDL_Surface* const ret){ return (ret == nullptr); } },
                             wall_tex_paths[i]) ) );
         std::cout << "Loaded texture: " << wall_tex_paths[i] << '\n';
     }

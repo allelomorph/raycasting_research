@@ -3,7 +3,7 @@
 cmake_minimum_required(VERSION 3.14) #???
 
 project(SafeSdlCall
-  VERSION 1.0
+  VERSION 1.5
   DESCRIPTION "Templated C++ wrapper for SDL2 function calls; throws failure \
     return values as exceptions"
   LANGUAGES CXX

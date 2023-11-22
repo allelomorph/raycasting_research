@@ -1,6 +1,6 @@
 #include "App.hh"
 #include "safeLibcCall.hh"      // Libc*
-#include "safeSdlCall.hh"       // SDL_RETURN_TEST
+#include "safeSdlCall.hh"       // Sdl*
 #include "xterm_ctrl_seqs.hh"   // CtrlSeqs
 #include "LinuxKbdInputMgr.hh"
 #include "SdlKbdInputMgr.hh"
@@ -33,7 +33,8 @@ App::App(const char* efn, const std::string& mfn,
 
     // wall textures are loaded with IMG_Load even when in tty mode,
     //   with SDL subsystems needed to report errors, so init regardless
-    safeSdlCall(SDL_Init, "SDL_Init", SDL_RETURN_TEST(int, ret != 0),
+    safeSdlCall(SDL_Init, "SDL_Init",
+                SdlRetTest<int>{ [](const int ret){ return (ret != 0); } },
                 tty_io ? 0 : SDL_INIT_VIDEO);
 }
 

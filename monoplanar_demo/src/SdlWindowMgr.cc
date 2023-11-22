@@ -1,5 +1,5 @@
 #include "SdlWindowMgr.hh"
-#include "safeSdlCall.hh"         // SDL_RETURN_TEST
+#include "safeSdlCall.hh"         // Sdl*
 
 #include <SDL2/SDL_image.h>       // IMG_*
 #include <SDL2/SDL_ttf.h>         // TTF_*
@@ -15,7 +15,8 @@ void SdlWindowMgr::makeGlyphs(const char* font_filename) {
     sdl2_unq::TtfFont font {
         sdl2_smart_ptr::make_unique(
             safeSdlCall(TTF_OpenFont, "TTF_OpenFont",
-                        SDL_RETURN_TEST(TTF_Font*, ret == nullptr),
+                        SdlRetTest<TTF_Font*> {
+                            [](TTF_Font* const ret){ return (ret == nullptr); } },
                         font_filename, window_h / 30 /*ptsize*/) ) };
     SDL_Color fg { 0xff, 0xff, 0xff, 0xff };  // text foreground color (opaque white)
     TTF_Font* _font { font.get() };
@@ -28,11 +29,13 @@ void SdlWindowMgr::makeGlyphs(const char* font_filename) {
         sdl2_unq::Surface glyph_surface {
             sdl2_smart_ptr::make_unique(
                 safeSdlCall(TTF_RenderGlyph_Blended, "TTF_RenderGlyph_Blended",
-                            SDL_RETURN_TEST(SDL_Surface*, ret == nullptr),
+                            SdlRetTest<SDL_Surface*>{
+                                [](SDL_Surface* const ret){ return (ret == nullptr); } },
                             _font, c, fg) ) };
         font_cache[c] = sdl2_smart_ptr::make_unique(
             safeSdlCall(SDL_CreateTextureFromSurface, "SDL_CreateTextureFromSurface",
-                        SDL_RETURN_TEST(SDL_Texture*, ret == nullptr),
+                        SdlRetTest<SDL_Texture*>{
+                            [](SDL_Texture* const ret){ return (ret == nullptr); } },
                         _renderer, glyph_surface.get()) );
     }
 }
@@ -119,10 +122,14 @@ void SdlWindowMgr::renderPixelColumn(const uint16_t screen_x,
 SdlWindowMgr::SdlWindowMgr() {
     // SDL_Init in App()
     // image subsystem for texture loading
-    safeSdlCall(IMG_Init, "IMG_Init", SDL_RETURN_TEST(int, (ret == 0)),
+    safeSdlCall(IMG_Init, "IMG_Init",
+                SdlRetTest<int>{
+                    [](const int ret){ return (ret == 0); } },
                 IMG_INIT_JPG);
     // tff font subsystem for fps text
-    safeSdlCall(TTF_Init, "TTF_Init", SDL_RETURN_TEST(int, (ret == -1)) );
+    safeSdlCall(TTF_Init, "TTF_Init",
+                SdlRetTest<int>{
+                    [](const int ret){ return (ret == -1); } } );
 }
 
 SdlWindowMgr::~SdlWindowMgr() {
@@ -133,7 +140,8 @@ SdlWindowMgr::~SdlWindowMgr() {
 
 uint32_t SdlWindowMgr::id() {
     return safeSdlCall(SDL_GetWindowID, "SDL_GetWindowID",
-                       SDL_RETURN_TEST(uint32_t, ret == 0),
+                       SdlRetTest<uint32_t>{
+                           [](const uint32_t ret){ return (ret == 0); } },
                        window.get());
 }
 
@@ -148,7 +156,8 @@ void SdlWindowMgr::initialize(const Settings& settings,
     //
     window = sdl2_smart_ptr::make_unique(
         safeSdlCall(SDL_CreateWindow, "SDL_CreateWindow",
-                    SDL_RETURN_TEST(SDL_Window*, ret == nullptr),
+                    SdlRetTest<SDL_Window*>{
+                        [](SDL_Window* const ret){ return (ret == nullptr); } },
                     "monoplanar raycast demo" /*name*/,
                     SDL_WINDOWPOS_CENTERED /*x*/, SDL_WINDOWPOS_CENTERED /*y*/,
                     WINDOW_WIDTH, WINDOW_HEIGHT,
@@ -159,7 +168,8 @@ void SdlWindowMgr::initialize(const Settings& settings,
     //   ( == 0 on success)
     renderer = sdl2_smart_ptr::make_unique(
         safeSdlCall(SDL_CreateRenderer, "SDL_CreateRenderer",
-                    SDL_RETURN_TEST(SDL_Renderer*, ret == nullptr),
+                    SdlRetTest<SDL_Renderer*>{
+                        [](SDL_Renderer* const ret){ return (ret == nullptr); } },
                     window.get(), -1 /*driver index (first to support flags)*/,
                     SDL_RENDERER_ACCELERATED /*flags*/) );
 
@@ -169,18 +179,21 @@ void SdlWindowMgr::initialize(const Settings& settings,
     //
     // init textures other than font cache
     //
+    SdlRetTest<SDL_Surface*> img_load_ret_test {
+        [](SDL_Surface* const ret){ return (ret == nullptr); } };
     sdl2_unq::Surface sky_surface { sdl2_smart_ptr::make_unique(
-            safeSdlCall(IMG_Load, "IMG_Load",
-                        SDL_RETURN_TEST(SDL_Surface*, (ret == nullptr)),
+            safeSdlCall(IMG_Load, "IMG_Load", img_load_ret_test,
                         SKY_TEX_PATH) ) };
     std::cout << "Loaded texture: " << SKY_TEX_PATH << '\n';
     sky_tex = sdl2_smart_ptr::make_unique(
         safeSdlCall(SDL_CreateTextureFromSurface, "SDL_CreateTextureFromSurface",
-                    SDL_RETURN_TEST(SDL_Texture*, (ret == nullptr)),
+                    SdlRetTest<SDL_Texture*>{
+                        [](SDL_Texture* const ret){ return (ret == nullptr); } },
                     renderer.get(), sky_surface.get()) );
     // set to alpha blending (for fps glyphs)
     safeSdlCall(SDL_SetTextureBlendMode, "SDL_SetTextureBlendMode",
-                SDL_RETURN_TEST(int, ret < 0),
+                SdlRetTest<int>{
+                        [](const int ret){ return (ret < 0); } },
                 sky_tex.get(), SDL_BLENDMODE_BLEND);
     // TBD: eventually change to map of texture keys representing floor/ceiling/walls
     // dummmy texture at index 0, as map tile 0 represents non-wall tile
@@ -189,8 +202,7 @@ void SdlWindowMgr::initialize(const Settings& settings,
     for (uint8_t i { 1 }; i < 9; ++i) {
         wall_texs.emplace_back(
             sdl2_smart_ptr::make_unique(
-                safeSdlCall(IMG_Load, "IMG_Load",
-                            SDL_RETURN_TEST(SDL_Surface*, (ret == nullptr)),
+                safeSdlCall(IMG_Load, "IMG_Load", img_load_ret_test,
                             wall_tex_paths[i]) ) );
         std::cout << "Loaded texture: " << wall_tex_paths[i] << '\n';
     }
@@ -207,7 +219,8 @@ void SdlWindowMgr::fitToWindow(const double map_proportion,
     // using format with alpha channel for blending of fps glyphs
     buffer = sdl2_smart_ptr::make_unique(
         safeSdlCall(SDL_CreateRGBSurfaceWithFormat, "SDL_CreateRGBSurfaceWithFormat",
-                    SDL_RETURN_TEST(SDL_Surface*, ret == nullptr),
+                    SdlRetTest<SDL_Surface*>{
+                        [](SDL_Surface* const ret){ return (ret == nullptr); } },
                     0 /*flags*/, window_w, window_h,
                     32 /*depth (bits per pixel)*/, SDL_PIXELFORMAT_BGRA32) );
     // Even if pixel setting is multithreaded, no two threads should be
@@ -216,13 +229,15 @@ void SdlWindowMgr::fitToWindow(const double map_proportion,
     assert(!SDL_MUSTLOCK(buffer.get()));
     buffer_tex = sdl2_smart_ptr::make_unique(
         safeSdlCall(SDL_CreateTexture, "SDL_CreateTexture",
-                    SDL_RETURN_TEST(SDL_Texture*, ret == nullptr),
+                    SdlRetTest<SDL_Texture*>{
+                        [](SDL_Texture* const ret){ return (ret == nullptr); } },
                     renderer.get(), buffer->format->format,
                     SDL_TEXTUREACCESS_STREAMING /*flags*/,
                     window_w, window_h) );
     // set to alpha blending (for fps glyphs)
     safeSdlCall(SDL_SetTextureBlendMode, "SDL_SetTextureBlendMode",
-                SDL_RETURN_TEST(int, ret < 0),
+                SdlRetTest<int>{
+                    [](const int ret){ return (ret < 0); } },
                 buffer_tex.get(), SDL_BLENDMODE_BLEND);
 
     minimap_scale = (window_h * map_proportion) / layout_h;

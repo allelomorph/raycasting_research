@@ -10,21 +10,41 @@ extern "C" {
 
 #include <cstring>    // strerror
 
+#include <functional>
 #include <stdexcept>  // runtime_error
-#include <string>
+#include <string_view>
 #include <sstream>
 
 
-// TBD: how to allow for throwing other exception types, eg bad_alloc?
+/*
+ * Using child classes instead of aliases due to need to differentiate testing
+ *   only errno (int) vs only an int return value.
+ * If performace becomes an issue similar aliases to function pointer types
+ *   would work, but at the cost of making the errno/int return differentiation,
+ *   and being able to pass in functors. For comparison of std::function vs
+ *   function pointers: https://stackoverflow.com/q/25848690
+ * Note that when instantiating these types with a lambda, ReturnType must
+ *   be passed as a template parameter to allow its deduction in safeLibcCall
+ */
+template<typename ReturnType>
+class LibcRetErrTest : public std::function<bool(const ReturnType, const int)> {};
 
-template<typename FuncPtrType, typename ReturnType, typename ...ParamTypes>
-ReturnType safeLibcCall(FuncPtrType func, const std::string& func_name,
-                     bool (*is_failure)(ReturnType, int), ParamTypes ...params) {
+template<typename ReturnType>
+class LibcRetTest : public std::function<bool(const ReturnType)> {};
+
+class LibcErrTest : public std::function<bool(const int)> {};
+
+
+template<typename FuncType, typename ReturnType, typename ...ParamTypes>
+ReturnType safeLibcCall(FuncType&& libc_func,
+                        const std::string_view& libc_func_name,
+                        const LibcRetErrTest<ReturnType>& is_failure,
+                        ParamTypes ...params) {
     errno = 0;
-    ReturnType retval { func(params...) };
+    ReturnType retval { libc_func(params...) };
     if (is_failure(retval, errno)) {
         std::ostringstream msg;
-        msg << func_name << ": ";
+        msg << libc_func_name << ": ";
         if (errno == 0)
             msg << "failure without setting errno";
         else
@@ -34,38 +54,56 @@ ReturnType safeLibcCall(FuncPtrType func, const std::string& func_name,
     return retval;
 }
 
-template<typename FuncPtrType, typename ...ParamTypes>
-void safeLibcCall(FuncPtrType func, const std::string& func_name,
-               bool (*is_failure)(int), ParamTypes ...params) {
+template<typename FuncType, typename ReturnType, typename ...ParamTypes>
+ReturnType safeLibcCall(FuncType&& libc_func,
+                        const std::string_view& libc_func_name,
+                        const LibcRetTest<ReturnType>& is_failure,
+                        ParamTypes ...params) {
     errno = 0;
-    func(params...);
-    if (errno != 0 && is_failure(errno)) {
+    ReturnType retval { libc_func(params...) };
+    if (is_failure(retval)) {
         std::ostringstream msg;
-        msg << func_name << ": " <<
-            errnoname(errno) << " - " << std::strerror(errno);
+        msg << libc_func_name << ": ";
+        if (errno == 0)
+            msg << "failure without setting errno";
+        else
+            msg << errnoname(errno) << " - " << std::strerror(errno);
+        throw std::runtime_error(msg.str());
+    }
+    return retval;
+}
+
+template<typename FuncType, typename ...ParamTypes>
+void safeLibcCall(FuncType&& libc_func,
+                  const std::string_view& libc_func_name,
+                  const LibcErrTest& is_failure,
+                  ParamTypes ...params) {
+    errno = 0;
+    libc_func(params...);
+    if (is_failure(errno)) {
+        std::ostringstream msg;
+        msg << libc_func_name << ": ";
+        if (errno == 0)
+            msg << "failure without setting errno";
+        else
+            msg << errnoname(errno) << " - " << std::strerror(errno);
         throw std::runtime_error(msg.str());
     }
 }
 
-template<typename FuncPtrType, typename ...ParamTypes>
-void safeLibcCall(FuncPtrType func, const std::string& func_name,
-               ParamTypes ...params) {
+template<typename FuncType, typename ...ParamTypes>
+void safeLibcCall(FuncType&& libc_func,
+                  const std::string_view& libc_func_name,
+                  ParamTypes ...params) {
     errno = 0;
-    func(params...);
+    libc_func(params...);
     if (errno != 0) {
         std::ostringstream msg;
-        msg << func_name << ": " <<
-            errnoname(errno) << " - " << std::strerror(errno);
+        msg << libc_func_name << ": " << errnoname(errno) <<
+            " - " << std::strerror(errno);
         throw std::runtime_error(msg.str());
     }
 }
-
-#define C_RETURN_ERRNO_TEST(ret_type, test) \
-    static_cast<bool (*)(ret_type ret, int err)>([](ret_type ret, int err){ return test; })
-#define C_RETURN_TEST(ret_type, test) \
-    static_cast<bool (*)(ret_type ret, int /*err*/)>([](ret_type ret, int /*err*/){ return test; })
-#define C_ERRNO_TEST(test) \
-    static_cast<bool (*)(int err)>([](int err){ return test; })
 
 
 #endif  // SAFELIBCCALL_HH

@@ -1,5 +1,5 @@
 #include "LinuxKbdInputMgr.hh"
-#include "safeLibcCall.hh"
+#include "safeLibcCall.hh" // Libc*
 
 #include <sys/types.h>     // open pid_t
 #include <sys/stat.h>      // open
@@ -26,14 +26,21 @@ constexpr char LinuxKbdInputMgr::INPUT_EVENT_PATH_PREFIX[];
 constexpr char LinuxKbdInputMgr::INPUT_DEVICES_PATH[];
 
 void LinuxKbdInputMgr::grabDevice(const std::string& exec_filename) {
-    kbd_device_fd = safeLibcCall(open, "open", C_RETURN_TEST(int, (ret == -1)),
-                              kbd_device_path.c_str(), O_RDONLY);
+//    LibcRetTest<int> open_ret_test {
+    //       [](const int ret){ return (ret == -1); } };
+    LibcRetTest<int> ioctl_ret_test {
+        [](const int ret){ return (ret == -1); } };
+
+    kbd_device_fd = safeLibcCall(open, "open",
+                                 LibcRetTest<int>{
+                                     [](const int ret){ return (ret == -1); } },
+                                 kbd_device_path.c_str(), O_RDONLY);
     try {
-        safeLibcCall(ioctl, "ioctl", C_RETURN_TEST(int, (ret == -1)),
-                  kbd_device_fd, EVIOCGRAB, (void*)1);
+        safeLibcCall(ioctl, "ioctl", ioctl_ret_test,
+                     kbd_device_fd, EVIOCGRAB, (void*)1);
     } catch (std::runtime_error& re) {
-        safeLibcCall(ioctl, "ioctl", C_RETURN_TEST(int, (ret == -1)),
-                  kbd_device_fd, EVIOCGRAB, (void*)0);
+        safeLibcCall(ioctl, "ioctl", ioctl_ret_test,
+                     kbd_device_fd, EVIOCGRAB, (void*)0);
         throw re;
     }
     std::ofstream ofs;
@@ -58,11 +65,16 @@ void LinuxKbdInputMgr::grabDevice(const std::string& exec_filename) {
 }
 
 void LinuxKbdInputMgr::ungrabDevice() {
+    LibcRetTest<int> ioctl_ret_test {
+        [](const int ret){ return (ret == -1); } };
+    LibcRetTest<int> close_ret_test {
+        [](const int ret){ return (ret == -1); } };
+
     if (kbd_device_fd != UNINITIALIZED_FD) {
-        safeLibcCall(ioctl, "ioctl", C_RETURN_TEST(int, (ret == -1)),
-                  kbd_device_fd, EVIOCGRAB, (void*)0);
-        safeLibcCall(close, "close", C_RETURN_TEST(int, (ret == -1)),
-                  kbd_device_fd);
+        safeLibcCall(ioctl, "ioctl", ioctl_ret_test,
+                     kbd_device_fd, EVIOCGRAB, (void*)0);
+        safeLibcCall(close, "close", close_ret_test,
+                     kbd_device_fd);
         std::ofstream ofs;
         ofs.open(input_tty_name);
         if (ofs.is_open()) {
@@ -197,8 +209,9 @@ std::string LinuxKbdInputMgr::determineInputTty() {
     // Use of ttyname taken from coreutils tty, see:
     //  - https://github.com/coreutils/coreutils/blob/master/src/tty.c
     std::string curr_tty_name { safeLibcCall(ttyname, "ttyname",
-                                          C_RETURN_TEST(char *, (ret == nullptr)),
-                                          STDIN_FILENO) };
+                                             LibcRetTest<char*>{
+                                                 [](char* const ret){ return (ret == nullptr); } },
+                                             STDIN_FILENO) };
     char *SSH_TTY { getenv("SSH_TTY") };
 
     // Current tty is true tty with hardware access
@@ -215,8 +228,10 @@ std::string LinuxKbdInputMgr::determineInputTty() {
     struct utmp *ut;
     // Note: man 3 getutent prescribes calling setutent first as a best practice,
     //   but in testing it fails here with ENOENT, so we ignore that case
+    LibcErrTest setutent_err_test {
+        [](const int err){ return (err != ENOENT); } };
     // opens _PATH_UTMP (eg /var/run/utmp)
-    safeLibcCall(setutent, "setutent", C_ERRNO_TEST( (err != ENOENT) ));
+    safeLibcCall(setutent, "setutent", setutent_err_test);
     while ((ut = getutent()) != nullptr) {
         // USER_PROCESS: normal process with attached username that is not LOGIN
         if (ut->ut_type == USER_PROCESS) {
@@ -298,13 +313,18 @@ void LinuxKbdInputMgr::consumeKeyEvents() {
     struct timeval tv { select_timeout };
     // select could be interrupted by a signal and return failure (likely cases
     //   in this application are SIGTERM, SIGINT, or SIGWINCH)
-    safeLibcCall(select, "select", C_RETURN_ERRNO_TEST(int, (ret == -1 && err != EINTR)),
-              kbd_device_fd + 1, &rdfds, nullptr, nullptr, &tv);
+    LibcRetErrTest<int> select_ret_err_test {
+        [](const int ret, const int err){ return (ret == -1 && err != EINTR); }
+    };
+    safeLibcCall(select, "select", select_ret_err_test,
+                 kbd_device_fd + 1, &rdfds, nullptr, nullptr, &tv);
     // select() interrupted by a signal, or did it time out?
     if (errno == EINTR || !FD_ISSET(kbd_device_fd, &rdfds))
         return;
-    ssize_t rd { safeLibcCall(read, "read", C_RETURN_TEST(ssize_t, (ret == -1)),
-                           kbd_device_fd, ev, sizeof(ev)) };
+    ssize_t rd { safeLibcCall(read, "read",
+                              LibcRetTest<ssize_t>{
+                                  [](const ssize_t ret){ return (ret == -1); } },
+                              kbd_device_fd, ev, sizeof(ev)) };
     if (rd < (ssize_t)sizeof(struct input_event)) {
         error_oss << __FUNCTION__ << ": expected to read at least " <<
             sizeof(struct input_event) << " bytes, got " << rd;

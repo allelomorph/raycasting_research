@@ -3,7 +3,7 @@
 cmake_minimum_required(VERSION 3.16) #???
 
 project(SafeLibcCall
-  VERSION 1.0
+  VERSION 2.0
   DESCRIPTION "Templated C++ wrapper for glibc function calls to throw \
     failures by return and/or errno values as exceptions"
   LANGUAGES C CXX

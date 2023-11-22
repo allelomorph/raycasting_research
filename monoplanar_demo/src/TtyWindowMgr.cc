@@ -1,5 +1,5 @@
 #include "TtyWindowMgr.hh"
-#include "safeLibcCall.hh"               // C_*
+#include "safeLibcCall.hh"            // Libc*
 #include "safeSdlCall.hh"             // SDL_RETURN_TEST
 #include "xterm_ctrl_seqs.hh"         // CtrlSeqs::
 
@@ -209,8 +209,9 @@ void TtyWindowMgr::initialize(const Settings& settings,
     // Use of ttyname taken from coreutils tty, see:
     //  - https://github.com/coreutils/coreutils/blob/master/src/tty.c
     tty_name = safeLibcCall(ttyname, "ttyname",
-                         C_RETURN_TEST(char *, (ret == nullptr)),
-                         STDIN_FILENO);
+                            LibcRetTest<char*>{
+                                [](char* const ret){ return (ret == nullptr); } },
+                            STDIN_FILENO);
 
     fitToWindow(settings.map_proportion, layout_h);
 
@@ -241,8 +242,9 @@ void TtyWindowMgr::fitToWindow(const double map_proportion,
     // use of TIOCGWINSZ taken from coreutils stty, see:
     //   - https://github.com/wertarbyte/coreutils/blob/master/src/stty.c#L1311
     struct winsize winsz;
-    safeLibcCall(ioctl, "ioctl", C_RETURN_TEST(int, (ret == -1)),
-              STDIN_FILENO, TIOCGWINSZ, &winsz);
+    safeLibcCall(ioctl, "ioctl",
+                 LibcRetTest<int>{ [](const int ret){ return (ret == -1); } },
+                 STDIN_FILENO, TIOCGWINSZ, &winsz);
     // replacing rather than resizing buffer due to stray map and hud chars not
     //   being overwritten when not in ascii mode
     buffer = TtyPixelBuffer(winsz.ws_col, winsz.ws_row);

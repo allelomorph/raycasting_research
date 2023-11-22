@@ -1,5 +1,5 @@
 #include "App.hh"
-#include "safeLibcCall.hh"      // C_*
+#include "safeLibcCall.hh"      // Libc*
 #include "safeSdlCall.hh"       // SDL_RETURN_TEST
 #include "xterm_ctrl_seqs.hh"   // CtrlSeqs
 #include "LinuxKbdInputMgr.hh"
@@ -51,15 +51,17 @@ void App::initialize() {
     // memset has no return or errno, so no safeLibcCall
     std::memset(&sa, 0, sizeof(struct sigaction));
     sa.sa_handler = sigint_sigterm_handler;
-    safeLibcCall(sigaction, "sigaction", C_RETURN_TEST(int, (ret == -1)),
-              SIGINT, &sa, nullptr);
-    safeLibcCall(sigaction, "sigaction", C_RETURN_TEST(int, (ret == -1)),
-              SIGTERM, &sa, nullptr);
+    LibcRetTest<int> sigaction_failure_test {
+        [](const int ret){ return (ret == -1); } };
+    safeLibcCall(sigaction, "sigaction", sigaction_failure_test,
+                 SIGINT, &sa, nullptr);
+    safeLibcCall(sigaction, "sigaction", sigaction_failure_test,
+                 SIGTERM, &sa, nullptr);
     // sigwinch_handler only needed in tty mode, but registered in both modes
     std::memset(&sa, 0, sizeof(struct sigaction));
     sa.sa_handler = sigwinch_handler;
-    safeLibcCall(sigaction, "sigaction", C_RETURN_TEST(int, (ret == -1)),
-              SIGWINCH, &sa, nullptr);
+    safeLibcCall(sigaction, "sigaction", sigaction_failure_test,
+                 SIGWINCH, &sa, nullptr);
 
     // parse map file to get maze and starting actor positions
     raycast_engine.loadMapFile(map_filename);
